@@ -2,3 +2,9 @@
 # Casing must match GitHub exactly, or OIDC role assumption will fail.
 github_owner = "your-github-username"
 github_repo  = "receipt-intel"
+
+# Numeric IDs GitHub puts in the OIDC subject claim. Find them with:
+#   https://api.github.com/users/<owner>   ("id")
+#   https://api.github.com/repos/<owner>/<repo>   ("id")
+github_owner_id = "12345678"
+github_repo_id  = "1234567890"

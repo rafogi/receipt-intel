@@ -3,7 +3,9 @@ data "aws_caller_identity" "current" {}
 locals {
   account_id   = data.aws_caller_identity.current.account_id
   state_bucket = "${var.project}-tfstate-${local.account_id}"
-  repo         = "${var.github_owner}/${var.github_repo}"
+  # GitHub's OIDC subject uses name@immutable-id for owner and repo, so a
+  # renamed or re-created repo with the same name can never assume these roles.
+  repo_subject = "repo:${var.github_owner}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}"
 }
 
 # -----------------------------------------------------------------------------
@@ -122,7 +124,7 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.repo}:pull_request"]
+      values   = ["${local.repo_subject}:pull_request"]
     }
   }
 }
@@ -185,7 +187,7 @@ data "aws_iam_policy_document" "apply_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${local.repo}:environment:${var.deploy_environment}"]
+      values   = ["${local.repo_subject}:environment:${var.deploy_environment}"]
     }
   }
 }

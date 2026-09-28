@@ -22,6 +22,13 @@ storing long-lived credentials.
   - *Apply role:* `AdministratorAccess`. Trusted only for jobs running in
     the `dev` GitHub environment, which is restricted to the `main` branch.
 
+- **Trust is pinned to immutable IDs.** GitHub's OIDC subject claim for this
+  repo has the form `repo:<owner>@<owner-id>/<repo>@<repo-id>:<context>`. Both
+  trust policies match that exact form, so a renamed, deleted, or re-created
+  repository with the same name cannot assume either role. (Found during the
+  first deploy: a name-only trust policy was rejected; CloudTrail's
+  `AssumeRoleWithWebIdentity` event showed the actual subject.)
+
 ## Alternatives considered
 - **IAM user access keys in GitHub secrets:** rejected; long-lived keys
   can leak and must be rotated by hand.

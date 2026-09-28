@@ -20,6 +20,16 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_owner_id" {
+  description = "Numeric GitHub user/org ID. GitHub includes it in the OIDC subject claim."
+  type        = string
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID. GitHub includes it in the OIDC subject claim."
+  type        = string
+}
+
 variable "deploy_environment" {
   description = "GitHub Actions environment name allowed to assume the apply role."
   type        = string
