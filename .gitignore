@@ -1,0 +1,29 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+terraform.tfvars
+backend.hcl
+.build/
+# Keep .terraform.lock.hcl committed so provider versions are reproducible.
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# Evaluation data: real receipts contain personal info, keep them out of Git.
+eval/data/
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json

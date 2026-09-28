@@ -1,0 +1,97 @@
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "services/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "services/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+# id-token: write is what lets the job request an OIDC token for AWS.
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two applies (or a plan and an apply) against dev at once.
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  TF_IN_AUTOMATION: "true"
+  TF_WORKDIR: infra/envs/dev
+  # Keep in sync with your local Terraform version.
+  TF_VERSION: "1.16.2"
+
+jobs:
+  plan:
+    name: plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Init
+        run: terraform -chdir="$TF_WORKDIR" init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Validate
+        run: terraform -chdir="$TF_WORKDIR" validate
+
+      - name: Plan
+        run: terraform -chdir="$TF_WORKDIR" plan -input=false -no-color -out=tfplan
+
+      - name: Add plan to job summary
+        run: |
+          {
+            echo "### Terraform plan (dev)"
+            echo '```'
+            terraform -chdir="$TF_WORKDIR" show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: apply
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # The apply role only trusts jobs running in this environment (see ADR-0002).
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform -chdir="$TF_WORKDIR" init -input=false -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Apply
+        run: terraform -chdir="$TF_WORKDIR" apply -input=false -auto-approve

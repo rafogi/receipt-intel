@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+# Casing must match GitHub exactly, or OIDC role assumption will fail.
+github_owner = "your-github-username"
+github_repo  = "receipt-intel"
