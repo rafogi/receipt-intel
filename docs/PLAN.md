@@ -7,7 +7,7 @@ tracking, and AI agents for exception handling and spending questions.
 **Goal:** a portfolio project for cloud AI architect roles. The design
 decisions, evaluation results, and cost analysis matter as much as the code.
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-06
 
 ---
 
@@ -17,7 +17,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 |---|---|---|
 | 0 | Foundations: account, Identity Center, Terraform state, CI/CD | ✅ Done |
 | 1 | Test set and extraction evaluation | 🟡 In progress (Bedrock blocked by account verification) |
-| 2 | Core pipeline | ⬜ Next |
+| 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
 | 3 | Upload API, Cognito, phone web app | ⬜ |
 | 4 | Online receipts: email and PDF | ⬜ |
 | 5 | Event consumers, dashboard, budgets | ⬜ |
@@ -41,11 +41,13 @@ decisions, evaluation results, and cost analysis matter as much as the code.
    forwarded email (SES inbound), Raspberry Pi (device role). All write to one
    **S3** bucket.
 2. **EventBridge** rule on S3 uploads starts a **Step Functions** workflow:
+   - **Claim** (DynamoDB conditional write on object key + ETag; duplicates stop here)
    - **File type** choice: photos → Textract; text PDFs and emails → text parser
-   - **Textract AnalyzeExpense** (direct service integration)
-   - **Normalize** Textract output (small Lambda)
+   - **Analyze** (small Lambda): Textract AnalyzeExpense, raw response saved to
+     S3, compact fields returned. A Lambda, not a direct integration, because
+     responses can exceed the 256 KB Step Functions payload limit (ADR-0004)
    - **Bedrock (Nova)** extraction and categorization with a JSON schema
-     (direct service integration)
+     (direct service integration; a Textract-only placeholder until ADR-0003)
    - **Validate** (small Lambda, rule-based, not an LLM)
    - **Route:** valid → DynamoDB; failed validation → SQS review queue
    - Publish `ReceiptProcessed` event
@@ -144,13 +146,16 @@ Compare extraction approaches on real receipts before building the pipeline.
 
 **Done when:** results table and ADR-0003 choose the approach for Phase 2.
 
-### Phase 2: Core pipeline
-- S3 bucket, EventBridge rule, Step Functions workflow (Terraform)
-- File-type choice, Textract and Bedrock as direct integrations
-- Normalize and Validate Lambdas; shared `receipt_schema.py`
-- DynamoDB table (`userId` / `date#receiptId`, status index)
-- SQS review queue; DLQs; retries with backoff; idempotency (object key + ETag)
-- Catch blocks set `needs_manual_entry` status after retries fail
+### Phase 2: Core pipeline 🟡
+- [x] S3 bucket, EventBridge rule, Step Functions workflow (Terraform, `infra/modules/receipt_pipeline`)
+- [x] File-type choice; Analyze Lambda (Textract, raw response to S3); DynamoDB, SQS, EventBridge as direct integrations
+- [x] Analyze and Validate Lambdas; shared package `services/pipeline/src` (also used by `eval/`)
+- [x] DynamoDB table: `userId` / `receiptId`, local indexes `byDate` (`date#receiptId`) and `byStatus`
+- [x] SQS review queue; DLQs; retries with backoff; idempotency (object key + ETag)
+- [x] Catch blocks set `needs_manual_entry` status after retries fail
+- [x] Unit tests in CI; ADR-0004, ADR-0005, ADR-0006
+- [ ] Deployed and smoke-tested with a real upload
+- [ ] Extract step: replace the Textract-only placeholder once ADR-0003 is decided
 
 **Done when:** a receipt in S3 produces a DynamoDB row; a bad one lands in the
 review queue; a forced failure lands in the DLQ. Can be built while Bedrock is
@@ -234,9 +239,9 @@ or budget question gets a correct answer.
 | 0001 | Region: us-west-2 | Accepted |
 | 0002 | Terraform state and CI/CD auth (OIDC, ID-pinned trust) | Accepted |
 | 0003 | Extraction approach (Textract+LLM vs. vision vs. Textract only) | Phase 1 |
-| 0004 | Direct service integrations vs. Lambda wrappers | Phase 2 |
-| 0005 | Rule-based validation gate (not an LLM) | Phase 2 |
-| 0006 | Idempotency strategy | Phase 2 |
+| 0004 | Direct service integrations vs. Lambda wrappers | Accepted |
+| 0005 | Rule-based validation gate (not an LLM) | Accepted |
+| 0006 | Idempotency strategy | Accepted |
 | 0007 | SQS buffer vs. inline agent call | Phase 8 |
 | 0008 | Workflows for ingestion, agents for exceptions and questions | Phase 8 |
 | 0009 | Pi authentication and edge redaction | Phase 9 |

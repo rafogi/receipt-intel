@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "eval/**"
+      - ".github/workflows/tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "eval/**"
+      - ".github/workflows/tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    name: pipeline unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Match the Lambda runtime (python3.13 in infra/modules/python_lambda).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        run: pip install -r services/pipeline/requirements-dev.txt
+
+      - name: Test
+        run: python -m pytest services/pipeline -q -p no:cacheprovider
