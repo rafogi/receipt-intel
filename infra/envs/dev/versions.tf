@@ -13,7 +13,7 @@ terraform {
   }
 
   # Partial backend config: the bucket name is supplied at init time.
-  #   Locally: terraform init -backend-config=backend.hcl
+  #   Locally: terraform init "-backend-config=backend.hcl"  (quotes needed in PowerShell)
   #   In CI:   terraform init -backend-config="bucket=$TF_STATE_BUCKET"
   backend "s3" {
     key          = "envs/dev/terraform.tfstate"
