@@ -1,5 +1,5 @@
 """Shared extraction contract: categories, the tool schema the model must fill,
-and the prompts. The Phase 2 pipeline will reuse this, so evaluation and
+and the prompts. Used by the pipeline Lambdas and by eval/, so evaluation and
 production ask the model exactly the same question."""
 
 CATEGORIES = [

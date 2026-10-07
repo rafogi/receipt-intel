@@ -2,6 +2,7 @@ data "archive_file" "this" {
   type        = "zip"
   source_dir  = var.source_dir
   output_path = "${path.root}/.build/${var.name}.zip"
+  excludes    = ["**/__pycache__/**", "**/*.pyc"]
 }
 
 # Created explicitly so retention is set (Lambda's auto-created groups never expire).
@@ -40,14 +41,24 @@ resource "aws_iam_role_policy" "logs" {
   policy = data.aws_iam_policy_document.logs.json
 }
 
+# Anything else the function needs (S3, Textract, ...), scoped by the caller.
+# A map (not count) because the policy JSON is only known at apply time.
+resource "aws_iam_role_policy" "extra" {
+  for_each = var.inline_policies
+
+  name   = each.key
+  role   = aws_iam_role.this.id
+  policy = each.value
+}
+
 resource "aws_lambda_function" "this" {
   function_name    = var.name
   role             = aws_iam_role.this.arn
   runtime          = "python3.13"
-  handler          = "handler.handler"
+  handler          = var.handler
   architectures    = ["arm64"]
-  memory_size      = 128
-  timeout          = 10
+  memory_size      = var.memory_size
+  timeout          = var.timeout
   filename         = data.archive_file.this.output_path
   source_code_hash = data.archive_file.this.output_base64sha256
 
@@ -60,5 +71,5 @@ resource "aws_lambda_function" "this" {
     log_group  = aws_cloudwatch_log_group.this.name
   }
 
-  depends_on = [aws_iam_role_policy.logs]
+  depends_on = [aws_iam_role_policy.logs, aws_iam_role_policy.extra]
 }

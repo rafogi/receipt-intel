@@ -1,5 +1,7 @@
 """Phase 1 evaluation: compare receipt-extraction approaches against ground truth.
 
+  0  textract_only       : Textract's own fields, no LLM (baseline; can't categorize)
+
   A  textract_nova_micro : Textract AnalyzeExpense -> Nova Micro (text) normalizes + categorizes
   B  nova_lite_vision    : Nova Lite reads the receipt image directly
 
@@ -40,7 +42,11 @@ from common import (
     parse_money,
     prepare_image,
 )
-from receipt_schema import (
+
+# The extraction contract and Textract parsing live with the pipeline code, so
+# evaluation and production read receipts exactly the same way.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "pipeline" / "src"))
+from receipt_schema import (  # noqa: E402
     CATEGORIES,
     MONEY_FIELDS,
     SYSTEM_PROMPT,
@@ -48,6 +54,7 @@ from receipt_schema import (
     textract_user_prompt,
     vision_user_prompt,
 )
+from textract import extract_fields, ocr_text  # noqa: E402
 
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 
@@ -106,32 +113,6 @@ def textract_expense(textract, receipt_id: str, image: bytes, refresh: bool) -> 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record, indent=1), encoding="utf-8")
     return record
-
-
-def textract_to_text(resp: dict, max_items: int = 60) -> str:
-    """Flatten AnalyzeExpense output into compact lines an LLM can read."""
-    lines: list[str] = []
-    for doc in resp.get("ExpenseDocuments", []):
-        for f in doc.get("SummaryFields", []):
-            ftype = f.get("Type", {}).get("Text", "OTHER")
-            label = (f.get("LabelDetection") or {}).get("Text", "")
-            value = (f.get("ValueDetection") or {}).get("Text", "")
-            if value:
-                lines.append(f"{ftype}" + (f" [{label}]" if label else "") + f": {value}")
-        items = 0
-        for group in doc.get("LineItemGroups", []):
-            for item in group.get("LineItems", []):
-                fields = {
-                    x.get("Type", {}).get("Text"): (x.get("ValueDetection") or {}).get("Text", "")
-                    for x in item.get("LineItemExpenseFields", [])
-                }
-                row = fields.get("EXPENSE_ROW") or " ".join(
-                    v for k, v in fields.items() if k in ("ITEM", "QUANTITY", "PRICE") and v
-                )
-                if row and items < max_items:
-                    lines.append(f"LINE_ITEM: {row}")
-                    items += 1
-    return "\n".join(lines)
 
 
 def call_llm(bedrock, model_id: str, content: list[dict]) -> dict:
@@ -235,7 +216,7 @@ def llm_cost(model_id: str, tokens_in: int, tokens_out: int) -> float:
 
 def run_textract_nova_micro(ctx, receipt_id: str, image: bytes) -> dict:
     record = textract_expense(ctx["textract"], receipt_id, image, ctx["refresh_textract"])
-    text = textract_to_text(record["response"])
+    text = ocr_text(record["response"])
     llm = ctx["llm"](ctx["micro_model"], [{"text": textract_user_prompt(text)}])
     return {
         "fields": llm["fields"],
@@ -260,44 +241,12 @@ def run_nova_lite_vision(ctx, receipt_id: str, image: bytes) -> dict:
     }
 
 
-def best_field(fields: list[dict], ftype: str) -> tuple[str | None, str]:
-    """Highest-confidence value Textract assigned to this field type, plus its printed label."""
-    candidates = [
-        f for f in fields
-        if f.get("Type", {}).get("Text") == ftype and (f.get("ValueDetection") or {}).get("Text")
-    ]
-    if not candidates:
-        return None, ""
-    best = max(candidates, key=lambda f: (f.get("ValueDetection") or {}).get("Confidence", 0))
-    return best["ValueDetection"]["Text"], (best.get("LabelDetection") or {}).get("Text", "")
-
-
-def money_from_text(text: str | None) -> float | None:
-    match = re.search(r"-?\d[\d,]*\.\d{2}", text or "")
-    return round(float(match.group(0).replace(",", "")), 2) if match else None
-
-
 def run_textract_only(ctx, receipt_id: str, image: bytes) -> dict:
-    """Baseline: Textract's own fields, no LLM. It cannot choose a category."""
+    """Baseline: Textract's own fields, no LLM (the pipeline's Phase 2 placeholder). No category."""
     record = textract_expense(ctx["textract"], receipt_id, image, ctx["refresh_textract"])
-    fields = [f for d in record["response"].get("ExpenseDocuments", []) for f in d.get("SummaryFields", [])]
-    store, _ = best_field(fields, "VENDOR_NAME")
-    date, _ = best_field(fields, "INVOICE_RECEIPT_DATE")
-    out = {
-        "store": store.split("\n")[0] if store else None,
-        "date": date,
-        "subtotal": money_from_text(best_field(fields, "SUBTOTAL")[0]),
-        "total": money_from_text(best_field(fields, "TOTAL")[0]),
-    }
-    for f in fields:  # TAX lines: labelled PST go to pst, anything else to gst
-        if f.get("Type", {}).get("Text") != "TAX":
-            continue
-        label = ((f.get("LabelDetection") or {}).get("Text") or "").upper()
-        key = "pst" if "PST" in label else "gst"
-        if out.get(key) is None:
-            out[key] = money_from_text((f.get("ValueDetection") or {}).get("Text"))
+    fields, _ = extract_fields(record["response"])
     return {
-        "fields": out,
+        "fields": fields,
         "latency_s": record["latency_s"],
         "cost_usd": record["pages"] * PRICES["textract_expense_per_page"],
         "tokens": [0, 0],

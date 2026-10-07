@@ -2,16 +2,11 @@ locals {
   name_prefix = "${var.project}-${var.environment}"
 }
 
-# Phase 0 smoke test: proves the full path from pull request to deployed code.
-# Replaced by the real pipeline modules from Phase 2 onward.
-module "hello" {
-  source = "../../modules/hello_lambda"
+# Phase 2: S3 upload -> EventBridge -> Step Functions -> DynamoDB / review queue.
+module "pipeline" {
+  source = "../../modules/receipt_pipeline"
 
-  name               = "${local.name_prefix}-hello"
-  source_dir         = "${path.root}/../../../services/hello"
+  name_prefix        = local.name_prefix
+  lambda_source_dir  = "${path.root}/../../../services/pipeline/src"
   log_retention_days = 14
-
-  environment_variables = {
-    APP_ENV = var.environment
-  }
 }

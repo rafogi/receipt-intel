@@ -7,8 +7,8 @@ Compares two ways of reading receipts, on real receipts, before the pipeline is 
 | **A** `textract_nova_micro` | Textract `AnalyzeExpense` reads the receipt; Nova Micro normalizes fields and picks a category |
 | **B** `nova_lite_vision` | Nova Lite reads the photo directly, no OCR step |
 
-Both use the same prompt and output schema (`receipt_schema.py`), which the Phase 2
-pipeline will reuse. The report measures per-field accuracy, latency, cost per receipt,
+Both use the same prompt and output schema (`services/pipeline/src/receipt_schema.py`),
+shared with the Phase 2 pipeline, as is the Textract parsing. The report measures per-field accuracy, latency, cost per receipt,
 and how well the "subtotal + taxes = total" check catches wrong totals.
 
 Everything under `eval/data/` is gitignored, because receipts contain personal information.

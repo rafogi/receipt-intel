@@ -4,8 +4,8 @@ Event-driven document intelligence on AWS: receipt photos, PDFs, and forwarded
 email receipts become categorized spending data, using Textract, Amazon Bedrock,
 and Step Functions, with everything deployed from Terraform.
 
-> Status: Phase 0 (foundations). Architecture, ADRs, and results will be added
-> here as each phase lands.
+> Status: Phase 2 (core pipeline). See [docs/PLAN.md](docs/PLAN.md) for the
+> roadmap. Architecture, ADRs, and results are added here as each phase lands.
 
 ## Repository layout
 
@@ -81,10 +81,9 @@ git checkout -b phase-0-hello
 git push -u origin phase-0-hello
 ```
 Open a pull request: the **plan** job runs and posts the plan to the job
-summary. Merge it: the **apply** job deploys the hello Lambda. Then:
-```bash
-aws lambda invoke --function-name receipt-intel-dev-hello out.json && cat out.json
-```
+summary. Merge it: the **apply** job deploys the `dev` environment.
+(Phase 0 deployed a hello-world Lambda here; Phase 2 replaced it with the
+receipt pipeline below.)
 
 ### Working locally
 ```bash
@@ -94,6 +93,43 @@ terraform init "-backend-config=backend.hcl"   # quotes needed in PowerShell
 terraform plan
 ```
 
+## Receipt pipeline (Phase 2)
+
+```
+S3 uploads/{userId}/{receiptId}.jpg
+  → EventBridge → Step Functions
+      Claim (idempotency) → file type → Analyze (Textract) → Extract → Validate
+      → Save → review queue if needed → ReceiptProcessed event
+  failures: retries with backoff → needs_manual_entry + pipeline DLQ
+```
+
+Terraform: `infra/modules/receipt_pipeline`. Lambda code and tests:
+`services/pipeline` (`src/` is deployed; `tests/` runs in CI).
+
+Until the extraction approach is chosen (ADR-0003), the Extract step uses
+Textract's own fields with no category, so every receipt lands in the review
+queue with `category_missing`. That is expected.
+
+### Try it
+```powershell
+cd infra/envs/dev
+$bucket = terraform output -raw receipts_bucket
+$table  = terraform output -raw receipts_table
+aws s3 cp C:\path\to\receipt.jpg "s3://$bucket/uploads/test-user/r001.jpg"   # ~1¢ of Textract
+# A few seconds later:
+aws dynamodb get-item --table-name $table --key '{\"userId\":{\"S\":\"test-user\"},\"receiptId\":{\"S\":\"r001\"}}'
+```
+Executions are visible in the Step Functions console (`receipt-intel-dev-pipeline`).
+
+### Run the unit tests
+```powershell
+python -m pip install -r services/pipeline/requirements-dev.txt
+python -m pytest services/pipeline -q
+```
+
 ## Architecture decisions
 - [ADR-0001: Deploy to us-west-2](docs/adr/0001-region-selection.md)
 - [ADR-0002: Terraform state and CI/CD authentication](docs/adr/0002-terraform-state-and-ci-auth.md)
+- [ADR-0004: Direct service integrations vs. Lambda wrappers](docs/adr/0004-direct-integrations-vs-lambda.md)
+- [ADR-0005: Rule-based validation gate](docs/adr/0005-rule-based-validation.md)
+- [ADR-0006: Idempotency strategy](docs/adr/0006-idempotency.md)
