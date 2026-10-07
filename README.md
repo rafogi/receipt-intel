@@ -121,6 +121,38 @@ aws dynamodb get-item --table-name $table --key '{\"userId\":{\"S\":\"test-user\
 ```
 Executions are visible in the Step Functions console (`receipt-intel-dev-pipeline`).
 
+## API and sign-in (Phase 3)
+
+Cognito user pool (admin-created accounts only, optional TOTP MFA, hosted
+sign-in pages) and an HTTP API with a JWT authorizer. Terraform:
+`infra/modules/receipt_api`; code: `services/pipeline/src/api.py`.
+
+| Route | Does |
+|---|---|
+| `POST /uploads` | Presigned POST for a new photo (JPEG/PNG, ≤ 10 MB) |
+| `GET /receipts` | Newest first; `?month=YYYY-MM` or `?status=needs_attention` (also `needs_review`, `needs_manual_entry`, `processing`, `processed`); `?limit=`, `?nextToken=` |
+| `GET /receipts/{id}` | One receipt plus a 10-minute photo URL |
+| `PATCH /receipts/{id}` | Manual fix of `store`, `date`, `subtotal`, `gst`, `pst`, `total`, `category`; saved as `source=manual` (422 lists what's still missing) |
+
+### Create your account
+Self sign-up is off. Create users with the CLI (Cognito emails a temporary password):
+```powershell
+cd infra/envs/dev
+aws cognito-idp admin-create-user --user-pool-id (terraform output -raw user_pool_id) `
+  --username you@example.com --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
+```
+
+### Call the API from the CLI (dev only)
+`dev` allows `ADMIN_USER_PASSWORD_AUTH`, which needs IAM admin credentials, so
+you can get a token without the web app:
+```powershell
+$pool = terraform output -raw user_pool_id; $client = terraform output -raw web_client_id; $api = terraform output -raw api_url
+$token = aws cognito-idp admin-initiate-auth --user-pool-id $pool --client-id $client `
+  --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters USERNAME=you@example.com,PASSWORD='...' `
+  --query AuthenticationResult.AccessToken --output text
+curl.exe -H "Authorization: Bearer $token" "${api}receipts?status=needs_attention"
+```
+
 ### Run the unit tests
 ```powershell
 python -m pip install -r services/pipeline/requirements-dev.txt

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from decimal import Decimal
 
 # Month-first formats come before day-first ones: "09/25/26" is the common
 # layout on BC till receipts. Truly ambiguous dates (e.g. 03/04/26) resolve
@@ -31,7 +32,7 @@ def parse_money(value) -> float | None:
     """A number, or the first d.dd amount in a string; None if there isn't one."""
     if value is None or isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float, Decimal)):  # DynamoDB returns numbers as Decimal
         return round(float(value), 2)
     match = _MONEY.search(str(value))
     return round(float(match.group(0).replace(",", "")), 2) if match else None
