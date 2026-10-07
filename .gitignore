@@ -23,6 +23,14 @@ dist/
 # Evaluation data: real receipts contain personal info, keep them out of Git.
 eval/data/
 
+# Secrets (API keys for local tools)
+.env
+.env.*
+!.env.example
+
+# Local test output (e.g. aws lambda invoke)
+out.json
+
 # OS / editor
 .DS_Store
 .vscode/*

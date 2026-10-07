@@ -90,7 +90,7 @@ aws lambda invoke --function-name receipt-intel-dev-hello out.json && cat out.js
 ```bash
 cd infra/envs/dev
 cp backend.hcl.example backend.hcl        # set the bucket name
-terraform init -backend-config=backend.hcl
+terraform init "-backend-config=backend.hcl"   # quotes needed in PowerShell
 terraform plan
 ```
 

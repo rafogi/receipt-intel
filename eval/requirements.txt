@@ -1,0 +1,5 @@
+boto3>=1.35
+pillow>=10.0
+pillow-heif>=0.18   # opens iPhone HEIC photos
+openai>=1.0         # only for --provider openai
+python-dotenv>=1.0  # loads OPENAI_API_KEY from eval/.env
