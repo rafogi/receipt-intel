@@ -41,10 +41,13 @@ class FakeDynamo:
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    # Presigning is local, but botocore still wants some credentials.
+    # Presigning is local, but botocore still wants some credentials. A client
+    # resolves them when it's created, so build a fresh one after setting them.
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
     monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.delenv("AWS_SESSION_TOKEN", raising=False)
+    monkeypatch.setattr(api, "s3", api.make_s3_client())
     monkeypatch.setattr(api, "BUCKET", "receipts-bucket")
     monkeypatch.setattr(api, "TABLE", "receipts-table")
 

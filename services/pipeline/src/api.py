@@ -69,14 +69,18 @@ PUBLIC_FIELDS = {
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
-# Regional endpoint and virtual-hosted style: a presigned URL on the global
-# endpoint can redirect for a new bucket, and browsers fail CORS on redirects.
-s3 = boto3.client(
-    "s3",
-    region_name=REGION,
-    endpoint_url=f"https://s3.{REGION}.amazonaws.com",
-    config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
-)
+def make_s3_client():
+    """Regional endpoint and virtual-hosted style: a presigned URL on the global
+    endpoint can redirect for a new bucket, and browsers fail CORS on redirects."""
+    return boto3.client(
+        "s3",
+        region_name=REGION,
+        endpoint_url=f"https://s3.{REGION}.amazonaws.com",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+    )
+
+
+s3 = make_s3_client()
 dynamodb = boto3.client("dynamodb", region_name=REGION)
 table = boto3.resource("dynamodb", region_name=REGION).Table(TABLE or "unset")
 _deserializer = TypeDeserializer()
