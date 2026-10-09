@@ -132,7 +132,8 @@ sign-in pages) and an HTTP API with a JWT authorizer. Terraform:
 | `POST /uploads` | Presigned POST for a new photo (JPEG/PNG, ≤ 10 MB) |
 | `GET /receipts` | Newest first; `?month=YYYY-MM` or `?status=needs_attention` (also `needs_review`, `needs_manual_entry`, `processing`, `processed`); `?limit=`, `?nextToken=` |
 | `GET /receipts/{id}` | One receipt plus a 10-minute photo URL |
-| `PATCH /receipts/{id}` | Manual fix of `store`, `date`, `subtotal`, `gst`, `pst`, `total`, `category`; saved as `source=manual` (422 lists what's still missing) |
+| `PATCH /receipts/{id}` | Manual fix of `store`, `date`, `subtotal`, `gst`, `pst`, `total`, `category`; saved as `source=manual` (422 lists what's still missing). Saving also confirms a `possible_duplicate` isn't one |
+| `DELETE /receipts/{id}` | Removes the receipt, its photo, and its raw Textract output (S3 versioning keeps the files 30 days) |
 
 ### Create your account
 Self sign-up is off. Create users with the CLI (Cognito emails a temporary password):

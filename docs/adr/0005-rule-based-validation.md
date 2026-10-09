@@ -27,9 +27,22 @@ failure routes the receipt to the review queue with the reasons attached:
 | No date | `date_missing` |
 | Date in the future, or more than 2 years old | `date_implausible` |
 | Category not in the allowed list | `category_missing` |
+| Same date and total (and a similar store name) as a receipt already saved | `possible_duplicate` |
 
 Receipts with no printed subtotal skip the math check instead of failing it
 (the fallback noted in Phase 1).
+
+The duplicate rule was added after the first real use: the same receipt was
+photographed twice, 38 seconds apart. Each photo is a different file, so the
+idempotency check (ADR-0006) correctly processed both; only a content check
+can tell they are the same purchase. Store names are compared loosely
+(similarity ≥ 0.8) because OCR misreads them ("T&1" for "T&T"). Saving the
+receipt in the app confirms it is not a duplicate; deleting it removes it.
+This rule needs a read of the receipts table (the `byDate` index), so the
+Validate Lambda has `dynamodb:Query` on that index and nothing else.
+
+Manual edits (`PATCH /receipts/{id}`) run the same field rules
+(`field_checks`), minus the Textract cross-checks and the duplicate check.
 
 ## Alternatives considered
 - **Ask an LLM whether its own reading was a guess:** weak (a model that

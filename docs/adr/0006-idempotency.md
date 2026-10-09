@@ -40,5 +40,8 @@ overwritten by the automatic result.
 
 ## Consequences
 - No extra table or Lambda; the guarantee lives in one DynamoDB condition.
+- This stops the same *file* being processed twice, not a second *photo* of
+  the same receipt (a new file, new ETag). That case is caught by the
+  `possible_duplicate` validation rule (ADR-0005).
 - Re-processing a receipt on purpose (for example, the hourly DLQ redrive in
   Phase 6) needs to bypass the same-ETag check; to be designed with the redrive.

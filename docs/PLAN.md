@@ -18,7 +18,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 | 0 | Foundations: account, Identity Center, Terraform state, CI/CD | ✅ Done |
 | 1 | Test set and extraction evaluation | 🟡 In progress (Bedrock blocked by account verification) |
 | 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
-| 3 | Upload API, Cognito, phone web app | 🟡 In progress (3a API, 3b web app in review) |
+| 3 | Upload API, Cognito, phone web app | ✅ Done |
 | 4 | Online receipts: email and PDF | ⬜ |
 | 5 | Event consumers, dashboard, budgets | ⬜ |
 | 6 | Observability, failure handling, cost | ⬜ |
@@ -161,7 +161,7 @@ Compare extraction approaches on real receipts before building the pipeline.
 review queue; a forced failure lands in the DLQ. Can be built while Bedrock is
 blocked (Bedrock failures exercise the DLQ path).
 
-### Phase 3: Upload API and phone web app 🟡
+### Phase 3: Upload API and phone web app ✅
 **3a: API and sign-in**
 - [x] Cognito user pool: admin-created accounts only, optional TOTP MFA, managed login, PKCE client
 - [x] HTTP API with JWT authorizer; one API Lambda (`services/pipeline/src/api.py`)
@@ -175,7 +175,11 @@ blocked (Bedrock failures exercise the DLQ path).
 - [x] Camera capture; resize to JPEG; blur / darkness / size check calibrated on Phase 1 photos
 - [x] "Needs your input" and by-month lists, detail view with photo, manual fix form; status polling
 - [x] CI builds and deploys the app after apply; CloudFront origin added to Cognito and CORS
-- [ ] Deployed; signed in on the phone, uploaded, fixed a flagged receipt by hand
+- [x] Deployed; signed in on the phone, uploaded, fixed a flagged receipt by hand (2026-10-09)
+- [x] Duplicate photos flagged (`possible_duplicate`); receipts can be deleted from the app
+
+**Lesson:** the first real use uploaded the same receipt twice. Idempotency by
+file (ADR-0006) can't catch a second photo; a content rule in validation can.
 - Later: refresh token rotation (needs a client library that supports it); offline support (service worker)
 
 **Done when:** sign in on the phone, upload, and see the receipt appear; fix

@@ -38,7 +38,16 @@ module "analyze" {
   }
 }
 
-# Validate needs no AWS permissions: it only checks fields and returns them.
+# Validate reads (never writes): same-date receipts, to flag a second photo
+# of a receipt already saved.
+data "aws_iam_policy_document" "validate" {
+  statement {
+    sid       = "FindDuplicates"
+    actions   = ["dynamodb:Query"]
+    resources = ["${aws_dynamodb_table.receipts.arn}/index/byDate"]
+  }
+}
+
 module "validate" {
   source = "../python_lambda"
 
@@ -48,4 +57,9 @@ module "validate" {
   timeout            = 10
   memory_size        = 128
   log_retention_days = var.log_retention_days
+  inline_policies    = { "find-duplicates" = data.aws_iam_policy_document.validate.json }
+
+  environment_variables = {
+    TABLE = aws_dynamodb_table.receipts.name
+  }
 }

@@ -32,6 +32,7 @@ const REASONS: Record<string, string> = {
   date_missing: "The date wasn't found",
   date_implausible: "The date looks wrong",
   unsupported_file_type: "This file type can't be read yet",
+  possible_duplicate: "This looks like a receipt you already added; delete it, or save to keep both",
 };
 
 const FIELD_NAMES: Record<string, string> = {
