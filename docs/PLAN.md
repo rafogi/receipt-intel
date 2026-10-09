@@ -18,7 +18,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 | 0 | Foundations: account, Identity Center, Terraform state, CI/CD | ✅ Done |
 | 1 | Test set and extraction evaluation | 🟡 In progress (Bedrock blocked by account verification) |
 | 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
-| 3 | Upload API, Cognito, phone web app | ⬜ |
+| 3 | Upload API, Cognito, phone web app | 🟡 In progress (3a API, 3b web app in review) |
 | 4 | Online receipts: email and PDF | ⬜ |
 | 5 | Event consumers, dashboard, budgets | ⬜ |
 | 6 | Observability, failure handling, cost | ⬜ |
@@ -154,19 +154,29 @@ Compare extraction approaches on real receipts before building the pipeline.
 - [x] SQS review queue; DLQs; retries with backoff; idempotency (object key + ETag)
 - [x] Catch blocks set `needs_manual_entry` status after retries fail
 - [x] Unit tests in CI; ADR-0004, ADR-0005, ADR-0006
-- [ ] Deployed and smoke-tested with a real upload
+- [x] Deployed and smoke-tested with a real upload (4.2 s end to end; duplicate upload skipped)
 - [ ] Extract step: replace the Textract-only placeholder once ADR-0003 is decided
 
 **Done when:** a receipt in S3 produces a DynamoDB row; a bad one lands in the
 review queue; a forced failure lands in the DLQ. Can be built while Bedrock is
 blocked (Bedrock failures exercise the DLQ path).
 
-### Phase 3: Upload API and phone web app
-- Cognito, API Gateway, presigned upload URLs
-- React (Vite) PWA on S3 + CloudFront: camera capture, pre-upload blur check
-- Receipts list, detail view, "Needs your input" screen, manual entry form
-- Read endpoints and `PATCH /receipts/{id}`; status polling
-- Least-privilege IAM, S3 public access blocked, encryption
+### Phase 3: Upload API and phone web app 🟡
+**3a: API and sign-in**
+- [x] Cognito user pool: admin-created accounts only, optional TOTP MFA, managed login, PKCE client
+- [x] HTTP API with JWT authorizer; one API Lambda (`services/pipeline/src/api.py`)
+- [x] `POST /uploads` presigned POST (type and size enforced by S3), bucket CORS
+- [x] Read endpoints and `PATCH /receipts/{id}` (manual fix, same rules as the pipeline)
+- [x] Least-privilege IAM, throttling, access logs without request bodies
+- [ ] Deployed and smoke-tested from the CLI
+
+**3b: phone web app**
+- [x] React (Vite) installable web app on S3 + CloudFront (OAC, strict CSP, HSTS)
+- [x] Camera capture; resize to JPEG; blur / darkness / size check calibrated on Phase 1 photos
+- [x] "Needs your input" and by-month lists, detail view with photo, manual fix form; status polling
+- [x] CI builds and deploys the app after apply; CloudFront origin added to Cognito and CORS
+- [ ] Deployed; signed in on the phone, uploaded, fixed a flagged receipt by hand
+- Later: refresh token rotation (needs a client library that supports it); offline support (service worker)
 
 **Done when:** sign in on the phone, upload, and see the receipt appear; fix
 a flagged one by hand.

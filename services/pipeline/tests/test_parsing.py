@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from parsing import parse_date, parse_money
@@ -10,6 +12,7 @@ from parsing import parse_date, parse_money
         ("1,234.56", 1234.56),
         ("TOTAL 8.50 CAD", 8.50),
         (12, 12.0),
+        (Decimal("8.5"), 8.50),  # as read back from DynamoDB
         (3.333, 3.33),
         ("", None),
         ("n/a", None),

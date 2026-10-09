@@ -121,6 +121,71 @@ aws dynamodb get-item --table-name $table --key '{\"userId\":{\"S\":\"test-user\
 ```
 Executions are visible in the Step Functions console (`receipt-intel-dev-pipeline`).
 
+## API and sign-in (Phase 3)
+
+Cognito user pool (admin-created accounts only, optional TOTP MFA, hosted
+sign-in pages) and an HTTP API with a JWT authorizer. Terraform:
+`infra/modules/receipt_api`; code: `services/pipeline/src/api.py`.
+
+| Route | Does |
+|---|---|
+| `POST /uploads` | Presigned POST for a new photo (JPEG/PNG, ≤ 10 MB) |
+| `GET /receipts` | Newest first; `?month=YYYY-MM` or `?status=needs_attention` (also `needs_review`, `needs_manual_entry`, `processing`, `processed`); `?limit=`, `?nextToken=` |
+| `GET /receipts/{id}` | One receipt plus a 10-minute photo URL |
+| `PATCH /receipts/{id}` | Manual fix of `store`, `date`, `subtotal`, `gst`, `pst`, `total`, `category`; saved as `source=manual` (422 lists what's still missing) |
+
+### Create your account
+Self sign-up is off. Create users with the CLI (Cognito emails a temporary password):
+```powershell
+cd infra/envs/dev
+aws cognito-idp admin-create-user --user-pool-id (terraform output -raw user_pool_id) `
+  --username you@example.com --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
+```
+
+### Call the API from the CLI (dev only)
+`dev` allows `ADMIN_USER_PASSWORD_AUTH`, which needs IAM admin credentials, so
+you can get a token without the web app:
+```powershell
+$pool = terraform output -raw user_pool_id; $client = terraform output -raw web_client_id; $api = terraform output -raw api_url
+$token = aws cognito-idp admin-initiate-auth --user-pool-id $pool --client-id $client `
+  --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters USERNAME=you@example.com,PASSWORD='...' `
+  --query AuthenticationResult.AccessToken --output text
+curl.exe -H "Authorization: Bearer $token" "${api}receipts?status=needs_attention"
+```
+
+## Phone web app (Phase 3b)
+
+React + Vite in `web/`, hosted on a private S3 bucket behind CloudFront
+(`infra/modules/web_hosting`). The main-branch workflow applies Terraform,
+then builds the app and syncs it to the bucket. Terraform writes
+`config.json` (API URL, Cognito ids), so the same build works in any environment.
+
+Open the URL from `terraform output -raw web_url` on your phone, sign in, and
+use **Share → Add to Home Screen** to install it.
+
+- **Add receipt:** take a photo; the app shrinks it to a JPEG and warns if it
+  looks blurry, dark, or small (you can still upload), then shows the receipt
+  as it's read.
+- **Needs your input:** receipts the validation step flagged; fix the fields
+  and save (the same rules as the pipeline decide whether it's complete).
+- **By month:** everything with a purchase date in that month.
+
+Security: sign-in uses the authorization code flow with PKCE (no client
+secret); CloudFront adds a strict Content-Security-Policy (scripts only from
+the app's own origin), HSTS, and frame blocking.
+
+### Run it locally
+```powershell
+cd infra/envs/dev
+$cfg = @{ apiUrl = (terraform output -raw api_url); issuer = (terraform output -raw issuer);
+          clientId = (terraform output -raw web_client_id); loginDomain = (terraform output -raw login_domain) }
+$cfg | ConvertTo-Json | Set-Content ..\..\..\web\public\config.json   # gitignored
+cd ..\..\..\web
+npm install
+npm run dev        # http://localhost:5173 (registered with Cognito and CORS)
+npm test
+```
+
 ### Run the unit tests
 ```powershell
 python -m pip install -r services/pipeline/requirements-dev.txt

@@ -45,21 +45,28 @@ def check(fields: dict, analysis: dict, today: date) -> list[str]:
 
     reasons = []
     total = fields["total"]
-    if total is None or total <= 0:
-        reasons.append("total_missing")
-    else:
+    if total is not None and total > 0:
         textract_total = (analysis.get("fields") or {}).get("total")
         confidence = (analysis.get("confidence") or {}).get("total", 0.0)
         if textract_total is None or confidence < MIN_TOTAL_CONFIDENCE:
             reasons.append("total_low_confidence")
         elif abs(textract_total - total) > MONEY_TOLERANCE:
             reasons.append("total_mismatch")
-        # Math check only where a subtotal is printed; receipts without one
-        # (e.g. tax-included totals) are not penalised.
-        if fields["subtotal"] is not None:
-            parts = fields["subtotal"] + (fields["gst"] or 0) + (fields["pst"] or 0)
-            if abs(parts - total) > MATH_TOLERANCE:
-                reasons.append("math_mismatch")
+    return reasons + field_checks(fields, today)
+
+
+def field_checks(fields: dict, today: date) -> list[str]:
+    """Rules any saved receipt must pass, whether read by the pipeline or typed by the user."""
+    reasons = []
+    total = fields["total"]
+    if total is None or total <= 0:
+        reasons.append("total_missing")
+    # Math check only where a subtotal is printed; receipts without one
+    # (e.g. tax-included totals) are not penalised.
+    elif fields["subtotal"] is not None:
+        parts = fields["subtotal"] + (fields["gst"] or 0) + (fields["pst"] or 0)
+        if abs(parts - total) > MATH_TOLERANCE:
+            reasons.append("math_mismatch")
 
     if not fields["store"]:
         reasons.append("store_missing")
@@ -74,10 +81,13 @@ def check(fields: dict, analysis: dict, today: date) -> list[str]:
     return reasons
 
 
-def dynamo_update(fields: dict, receipt_id: str, status: str, reasons: list[str], source: str, now: str) -> dict:
+def dynamo_update(
+    fields: dict, receipt_id: str, status: str, reasons: list[str], source: str, now: str, extra: dict | None = None
+) -> dict:
     """UpdateItem arguments: SET known fields, REMOVE missing ones (stale on reprocessing).
 
-    All attribute names go through placeholders, so reserved words (status,
+    `extra` adds more attributes the same way (a None value removes it). All
+    attribute names go through placeholders, so reserved words (status,
     source, date, ...) never break the expression.
     """
     values = {
@@ -91,6 +101,7 @@ def dynamo_update(fields: dict, receipt_id: str, status: str, reasons: list[str]
         "dateKey": f"{fields['date']}#{receipt_id}" if fields["date"] else None,  # byDate index
         "category": fields["category"],
         **{f: Decimal(str(fields[f])) if fields[f] is not None else None for f in MONEY_FIELDS},
+        **(extra or {}),
     }
     names, attr_values, sets, removes = {}, {}, [], []
     for i, (name, value) in enumerate(values.items()):

@@ -19,6 +19,8 @@ __pycache__/
 # Node
 node_modules/
 dist/
+# Local dev settings for the web app (generated from Terraform outputs)
+web/public/config.json
 
 # Evaluation data: real receipts contain personal info, keep them out of Git.
 eval/data/

@@ -17,3 +17,35 @@ output "review_queue_url" {
 output "pipeline_dlq_url" {
   value = module.pipeline.pipeline_dlq_url
 }
+
+output "api_url" {
+  value = module.api.api_url
+}
+
+output "user_pool_id" {
+  value = module.api.user_pool_id
+}
+
+output "web_client_id" {
+  value = module.api.web_client_id
+}
+
+output "login_domain" {
+  value = module.api.login_domain
+}
+
+output "issuer" {
+  value = module.api.issuer
+}
+
+output "web_url" {
+  value = module.web.url
+}
+
+output "web_bucket" {
+  value = module.web.bucket_name
+}
+
+output "web_distribution_id" {
+  value = module.web.distribution_id
+}
