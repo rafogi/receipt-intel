@@ -93,7 +93,7 @@ def test_missing_claims_is_401():
 
 
 def test_unknown_route_is_404():
-    assert call("DELETE /receipts/{id}")[0] == 404
+    assert call("PUT /budgets")[0] == 404
 
 
 def test_unexpected_user_id_is_rejected():
@@ -222,6 +222,7 @@ def test_patch_completes_a_flagged_receipt(monkeypatch):
     by_name = {name: values.get(p.replace("#a", ":v")) for p, name in names.items()}
     assert by_name["source"] == TypeSerializer().serialize("manual")
     assert by_name["failure"] is None  # removed: an old pipeline failure no longer applies
+    assert by_name["duplicateOf"] is None  # saving confirms it isn't a duplicate
     assert by_name["total"] == {"N": "8.5"}  # unchanged fields are kept
 
 
@@ -238,7 +239,7 @@ def test_patch_flags_unparseable_values(monkeypatch):
         "PATCH /receipts/{id}", path_id="20261007T220516-3f9c2a1b", body={"total": "abc", "category": "groceries"}
     )
     assert status == 422
-    assert body["reasons"][0] == "total_invalid"
+    assert body["reasons"] == ["total_invalid"]  # not also total_missing
 
 
 def test_patch_rejects_unknown_fields(monkeypatch):
@@ -251,3 +252,44 @@ def test_patch_rejects_unknown_fields(monkeypatch):
 def test_patch_missing_receipt_is_404(monkeypatch):
     monkeypatch.setattr(api, "table", FakeTable())
     assert call("PATCH /receipts/{id}", path_id="nope", body={"category": "gas"})[0] == 404
+
+
+# ---------------------------------------------------------------- delete
+
+
+class FakeS3:
+    def __init__(self):
+        self.deleted = []
+
+    def delete_object(self, Bucket, Key):
+        self.deleted.append(Key)
+
+
+def test_delete_removes_item_photo_and_raw_textract(monkeypatch):
+    table = FakeTable([receipt()])
+    table.delete_item = lambda Key: table.items.pop((Key["userId"], Key["receiptId"]))
+    s3 = FakeS3()
+    monkeypatch.setattr(api, "table", table)
+    monkeypatch.setattr(api, "s3", s3)
+    status, body = call("DELETE /receipts/{id}", path_id="20261007T220516-3f9c2a1b")
+    assert status == 200 and body == {"deleted": "20261007T220516-3f9c2a1b"}
+    assert not table.items
+    assert s3.deleted == [
+        f"textract/{USER}/20261007T220516-3f9c2a1b.json",
+        f"uploads/{USER}/20261007T220516-3f9c2a1b.jpg",
+    ]
+
+
+def test_delete_never_touches_another_users_object(monkeypatch):
+    table = FakeTable([receipt(objectKey="uploads/someone-else/x.jpg")])
+    table.delete_item = lambda Key: None
+    s3 = FakeS3()
+    monkeypatch.setattr(api, "table", table)
+    monkeypatch.setattr(api, "s3", s3)
+    assert call("DELETE /receipts/{id}", path_id="20261007T220516-3f9c2a1b")[0] == 200
+    assert all(key.startswith(f"textract/{USER}/") for key in s3.deleted)
+
+
+def test_delete_missing_receipt_is_404(monkeypatch):
+    monkeypatch.setattr(api, "table", FakeTable())
+    assert call("DELETE /receipts/{id}", path_id="nope")[0] == 404

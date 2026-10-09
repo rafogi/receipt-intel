@@ -8,9 +8,14 @@ so the workflow can save the result with a direct UpdateItem call.
 from __future__ import annotations
 
 import logging
+import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from difflib import SequenceMatcher
 
+import boto3
+from boto3.dynamodb.conditions import Key
 from boto3.dynamodb.types import TypeSerializer
 
 from parsing import parse_date, parse_money
@@ -23,8 +28,18 @@ MIN_TOTAL_CONFIDENCE = 80.0  # Textract's confidence (0-100) in the printed tota
 MONEY_TOLERANCE = 0.01  # Textract total vs. extracted total
 MATH_TOLERANCE = 0.02  # subtotal + taxes vs. total (rounding on the receipt)
 MAX_RECEIPT_AGE = timedelta(days=730)
+SAME_STORE_RATIO = 0.8  # OCR misreads ("T&1" for "T&T") still count as the same store
 
 _serializer = TypeSerializer()
+_table = None
+
+
+def receipts_table():
+    """The receipts table, or None where there isn't one configured (unit tests)."""
+    global _table
+    if _table is None and os.environ.get("TABLE"):
+        _table = boto3.resource("dynamodb").Table(os.environ["TABLE"])
+    return _table
 
 
 def clean_fields(raw: dict) -> dict:
@@ -81,6 +96,39 @@ def field_checks(fields: dict, today: date) -> list[str]:
     return reasons
 
 
+def _store_key(name) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def is_same_receipt(fields: dict, other: dict) -> bool:
+    """Same purchase date and total, and the same store when both have one.
+
+    A second photo of a receipt is a different file (new ETag), so the Claim
+    step's idempotency can't catch it; this can.
+    """
+    other_total = parse_money(other.get("total"))
+    if fields["total"] is None or other_total is None or abs(fields["total"] - other_total) > MONEY_TOLERANCE:
+        return False
+    if fields["date"] != other.get("purchaseDate"):
+        return False
+    mine, theirs = _store_key(fields["store"]), _store_key(other.get("store"))
+    return not mine or not theirs or SequenceMatcher(None, mine, theirs).ratio() >= SAME_STORE_RATIO
+
+
+def find_duplicate(table, user_id: str, receipt_id: str, fields: dict) -> str | None:
+    """Id of an existing receipt this one appears to duplicate, if any."""
+    if table is None or not fields["date"] or fields["total"] is None:
+        return None
+    resp = table.query(
+        IndexName="byDate",
+        KeyConditionExpression=Key("userId").eq(user_id) & Key("dateKey").begins_with(f"{fields['date']}#"),
+    )
+    for other in resp.get("Items", []):
+        if other.get("receiptId") != receipt_id and is_same_receipt(fields, other):
+            return other["receiptId"]
+    return None
+
+
 def dynamo_update(
     fields: dict, receipt_id: str, status: str, reasons: list[str], source: str, now: str, extra: dict | None = None
 ) -> dict:
@@ -125,9 +173,13 @@ def handler(event, context):
     fields = clean_fields(extraction.get("fields") or {})
     now = datetime.now(timezone.utc)
     reasons = check(fields, analysis, now.date())
+    duplicate_of = find_duplicate(receipts_table(), event["userId"], event["receiptId"], fields)
+    if duplicate_of:
+        reasons.append("possible_duplicate")
     status = "needs_review" if reasons else "processed"
     update = dynamo_update(
-        fields, event["receiptId"], status, reasons, extraction.get("source", "unknown"), now.isoformat()
+        fields, event["receiptId"], status, reasons, extraction.get("source", "unknown"), now.isoformat(),
+        extra={"duplicateOf": duplicate_of},  # None removes a stale value on reprocessing
     )
     logger.info("validated receipt", extra={"receipt_id": event["receiptId"], "status": status, "reasons": reasons})
     return {"status": status, "reasons": reasons, "fields": fields, "update": update}

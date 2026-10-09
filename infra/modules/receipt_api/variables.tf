@@ -21,6 +21,11 @@ variable "upload_prefix" {
   type        = string
 }
 
+variable "raw_prefix" {
+  description = "Where the pipeline keeps raw Textract output, e.g. textract/."
+  type        = string
+}
+
 variable "table_name" {
   type = string
 }

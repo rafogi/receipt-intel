@@ -10,6 +10,10 @@ output "upload_prefix" {
   value = local.upload_prefix
 }
 
+output "raw_prefix" {
+  value = local.raw_prefix
+}
+
 output "table_name" {
   value = aws_dynamodb_table.receipts.name
 }

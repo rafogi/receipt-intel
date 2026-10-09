@@ -118,6 +118,12 @@ button.secondary,
   margin-top: 0.5rem;
 }
 
+button.danger {
+  margin-top: 0.5rem;
+  border-color: var(--error);
+  color: var(--error);
+}
+
 .tabs {
   display: flex;
   gap: 0.5rem;

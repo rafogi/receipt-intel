@@ -7,13 +7,14 @@ locals {
     "GET /receipts",
     "GET /receipts/{id}",
     "PATCH /receipts/{id}",
+    "DELETE /receipts/{id}",
   ]
 }
 
 data "aws_iam_policy_document" "api_function" {
   statement {
     sid     = "ReceiptsTable"
-    actions = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"]
+    actions = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
     resources = [
       var.table_arn,
       "${var.table_arn}/index/*",
@@ -26,6 +27,17 @@ data "aws_iam_policy_document" "api_function" {
     sid       = "PresignUploads"
     actions   = ["s3:PutObject", "s3:GetObject"]
     resources = ["${var.bucket_arn}/${var.upload_prefix}*"]
+  }
+
+  # Deleting a receipt removes its photo and raw Textract output. Versioning
+  # keeps both for 30 days.
+  statement {
+    sid     = "DeleteReceiptFiles"
+    actions = ["s3:DeleteObject"]
+    resources = [
+      "${var.bucket_arn}/${var.upload_prefix}*",
+      "${var.bucket_arn}/${var.raw_prefix}*",
+    ]
   }
 }
 
@@ -44,6 +56,7 @@ module "api_function" {
     BUCKET        = var.bucket_name
     TABLE         = var.table_name
     UPLOAD_PREFIX = var.upload_prefix
+    RAW_PREFIX    = var.raw_prefix
   }
 }
 
@@ -54,7 +67,7 @@ resource "aws_apigatewayv2_api" "http" {
   # API Gateway answers CORS preflight (OPTIONS) itself, without auth.
   cors_configuration {
     allow_origins = var.web_origins
-    allow_methods = ["GET", "POST", "PATCH", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
     allow_headers = ["authorization", "content-type"]
     max_age       = 3600
   }

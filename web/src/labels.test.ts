@@ -7,6 +7,7 @@ describe("reasonLabel", () => {
     expect(reasonLabel("category_missing")).toBe("Pick a category");
     expect(reasonLabel("unreadable:BadDocumentException")).toMatch(/couldn't be read/);
     expect(reasonLabel("total_invalid")).toBe("Total isn't valid");
+    expect(reasonLabel("possible_duplicate")).toMatch(/already added/);
     expect(reasonLabel("something_new")).toBe("something new");
   });
 });

@@ -20,6 +20,7 @@ module "api" {
   bucket_name        = module.pipeline.bucket_name
   bucket_arn         = module.pipeline.bucket_arn
   upload_prefix      = module.pipeline.upload_prefix
+  raw_prefix         = module.pipeline.raw_prefix
   table_name         = module.pipeline.table_name
   table_arn          = module.pipeline.table_arn
   log_retention_days = 14

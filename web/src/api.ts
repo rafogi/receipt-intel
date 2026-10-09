@@ -17,6 +17,7 @@ export interface Receipt {
   uploadedAt?: string;
   processedAt?: string;
   editedAt?: string;
+  duplicateOf?: string; // id of the receipt this one appears to repeat
   photoUrl?: string;
 }
 
@@ -73,6 +74,10 @@ export class ApiClient {
 
   updateReceipt(id: string, fields: EditableFields): Promise<Receipt> {
     return this.request<Receipt>("PATCH", `receipts/${encodeURIComponent(id)}`, fields);
+  }
+
+  async deleteReceipt(id: string): Promise<void> {
+    await this.request("DELETE", `receipts/${encodeURIComponent(id)}`);
   }
 
   /** Get a presigned form, then POST the photo straight to S3. Returns the new receipt id. */

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ApiError, type Receipt } from "../api";
 import { useApi } from "../App";
 import { CATEGORIES, STATUS_LABELS, formatMoney, reasonLabel } from "../labels";
@@ -8,9 +8,14 @@ import { type Form, MONEY_FIELDS, fromForm, toForm } from "../receiptForm";
 const POLL_MS = 2000;
 const POLL_LIMIT_MS = 90_000;
 
+/** Keyed by id, so following a link to another receipt starts with fresh state. */
 export function ReceiptDetail() {
-  const api = useApi();
   const { id = "" } = useParams();
+  return <Detail key={id} id={id} />;
+}
+
+function Detail({ id }: { id: string }) {
+  const api = useApi();
   const justUploaded = Boolean((useLocation().state as { justUploaded?: boolean } | null)?.justUploaded);
 
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -20,6 +25,26 @@ export function ReceiptDetail() {
   const [form, setForm] = useState<Form | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveReasons, setSaveReasons] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const navigate = useNavigate();
+
+  // Two taps to delete: the first arms the button, the second deletes.
+  async function remove() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.deleteReceipt(id);
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError((err as Error).message);
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
 
   // Poll while the photo is still on its way through the pipeline.
   useEffect(() => {
@@ -109,6 +134,11 @@ export function ReceiptDetail() {
               <li key={r}>{reasonLabel(r)}</li>
             ))}
           </ul>
+          {receipt.duplicateOf && (
+            <p>
+              <Link to={`/receipts/${receipt.duplicateOf}`}>See the receipt you already added</Link>
+            </p>
+          )}
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -175,6 +205,11 @@ export function ReceiptDetail() {
       {!editing && receipt.status !== "processing" && (
         <button className="secondary" onClick={() => setEditing(true)}>
           Edit
+        </button>
+      )}
+      {receipt.status !== "processing" && (
+        <button className="danger" disabled={deleting} onClick={remove}>
+          {deleting ? "Deleting…" : confirmDelete ? "Tap again to delete" : "Delete receipt"}
         </button>
       )}
 

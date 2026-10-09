@@ -8,6 +8,7 @@ always the token's `sub` claim, never a value taken from the request.
     GET   /receipts         newest first; ?month=YYYY-MM or ?status=...
     GET   /receipts/{id}    one receipt, with a short-lived photo URL
     PATCH /receipts/{id}    manual fix; saved as source=manual, never overwritten
+    DELETE /receipts/{id}   remove a receipt (e.g. a duplicate) and its photo
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ BUCKET = os.environ.get("BUCKET", "")
 TABLE = os.environ.get("TABLE", "")
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 UPLOAD_PREFIX = os.environ.get("UPLOAD_PREFIX", "uploads/")
+RAW_PREFIX = os.environ.get("RAW_PREFIX", "textract/")
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # Textract's sync limit for images
 UPLOAD_URL_SECONDS = 300
@@ -65,6 +67,7 @@ PUBLIC_FIELDS = {
     "uploadedAt": "uploadedAt",
     "processedAt": "processedAt",
     "editedAt": "editedAt",
+    "duplicateOf": "duplicateOf",
 }
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -181,16 +184,19 @@ def update_receipt(user_id: str, event: dict) -> tuple[int, dict]:
     current.update({f: item.get(f) for f in MONEY_FIELDS})
     fields = clean_fields({**current, **body})
 
-    # A value that was sent but couldn't be parsed is an error, not a blank.
-    reasons = [f"{name}_invalid" for name, value in body.items() if value not in (None, "") and fields[name] is None]
+    # A value that was sent but couldn't be parsed is an error, not a blank;
+    # report it once (as "<field>_invalid", not also "<field>_missing").
+    invalid = [name for name, value in body.items() if value not in (None, "") and fields[name] is None]
     now = datetime.now(timezone.utc)
-    reasons += [r for r in field_checks(fields, now.date()) if r not in reasons]
+    reasons = [f"{name}_invalid" for name in invalid]
+    reasons += [r for r in field_checks(fields, now.date()) if r.removesuffix("_missing") not in invalid]
     if reasons:
         raise ApiError(422, "receipt can't be saved yet", reasons=reasons)
 
+    # Saving is the user's confirmation, including that a flagged duplicate isn't one.
     update = dynamo_update(
         fields, receipt_id, "processed", [], "manual", now.isoformat(),
-        extra={"source": "manual", "editedAt": now.isoformat(), "failure": None},
+        extra={"source": "manual", "editedAt": now.isoformat(), "failure": None, "duplicateOf": None},
     )
     try:
         resp = dynamodb.update_item(
@@ -208,11 +214,28 @@ def update_receipt(user_id: str, event: dict) -> tuple[int, dict]:
     return 200, public(saved)
 
 
+def delete_receipt(user_id: str, event: dict) -> tuple[int, dict]:
+    receipt_id = path_id(event)
+    item = table.get_item(Key={"userId": user_id, "receiptId": receipt_id}).get("Item")
+    if not item:
+        raise ApiError(404, "receipt not found")
+    table.delete_item(Key={"userId": user_id, "receiptId": receipt_id})
+    # Bucket versioning keeps deleted photos for 30 days, so this is recoverable.
+    keys = [f"{RAW_PREFIX}{user_id}/{receipt_id}.json"]
+    photo_key = item.get("objectKey", "")
+    if photo_key.startswith(f"{UPLOAD_PREFIX}{user_id}/"):
+        keys.append(photo_key)
+    for key in keys:
+        s3.delete_object(Bucket=BUCKET, Key=key)
+    return 200, {"deleted": receipt_id}
+
+
 ROUTES = {
     "POST /uploads": create_upload,
     "GET /receipts": list_receipts,
     "GET /receipts/{id}": get_receipt,
     "PATCH /receipts/{id}": update_receipt,
+    "DELETE /receipts/{id}": delete_receipt,
 }
 
 

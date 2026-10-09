@@ -1,8 +1,9 @@
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
-from validate import check, clean_fields, dynamo_update, handler
+from validate import check, clean_fields, dynamo_update, find_duplicate, handler, is_same_receipt
 
 TODAY = date(2026, 10, 1)
 
@@ -75,6 +76,67 @@ def test_dynamo_update_sets_and_removes():
         assert by_name[missing] is None  # removed, so no value placeholder
     # Reserved words never appear bare in the expression.
     assert "status" not in update["UpdateExpression"]
+
+
+class DatedTable:
+    """Fake receipts table answering byDate queries."""
+
+    def __init__(self, items):
+        self.items = items
+        self.queries = []
+
+    def query(self, **kwargs):
+        self.queries.append(kwargs)
+        return {"Items": self.items}
+
+
+EXISTING = {"receiptId": "r0", "store": "FOODY WORLD", "purchaseDate": "2026-09-26", "total": Decimal("38.19")}
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        ({}, True),
+        ({"store": "F00DY WORLD"}, True),  # OCR misread of the same store
+        ({"store": None}, True),  # no store read: date + total decide
+        ({"total": 38.20}, False),
+        ({"date": "2026-09-27"}, False),
+        ({"store": "Save-On-Foods"}, False),
+    ],
+)
+def test_is_same_receipt(overrides, expected):
+    fields = good_fields(store="FOODY WORLD", date="2026-09-26", total=38.19, subtotal=None, gst=None, pst=None)
+    fields.update(overrides)
+    assert is_same_receipt(fields, EXISTING) is expected
+
+
+def test_find_duplicate_ignores_itself():
+    fields = good_fields(store="FOODY WORLD", date="2026-09-26", total=38.19, subtotal=None, gst=None, pst=None)
+    table = DatedTable([EXISTING])
+    assert find_duplicate(table, "u1", "r1", fields) == "r0"
+    assert find_duplicate(table, "u1", "r0", fields) is None  # reprocessing the original
+    assert table.queries[0]["IndexName"] == "byDate"
+    assert find_duplicate(None, "u1", "r1", fields) is None  # no table configured
+
+
+def test_handler_flags_a_second_photo_of_the_same_receipt(monkeypatch):
+    import validate
+
+    monkeypatch.setattr(validate, "receipts_table", lambda: DatedTable([EXISTING]))
+    fields = {"store": "FOODY WORLD", "date": "2026-09-26", "total": 38.19, "category": "groceries"}
+    event = {
+        "userId": "u1",
+        "receiptId": "r1",
+        "analysis": analysis(total=38.19),
+        "extraction": {"source": "llm", "fields": fields},
+    }
+    result = handler(event, None)
+    assert result["status"] == "needs_review"
+    assert result["reasons"] == ["possible_duplicate"]
+    names = result["update"]["ExpressionAttributeNames"]
+    values = result["update"]["ExpressionAttributeValues"]
+    by_name = {names[k]: values.get(k.replace("#a", ":v")) for k in names}
+    assert by_name["duplicateOf"] == {"S": "r0"}
 
 
 def test_handler_textract_only_goes_to_review():
