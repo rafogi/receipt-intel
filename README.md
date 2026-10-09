@@ -153,6 +153,39 @@ $token = aws cognito-idp admin-initiate-auth --user-pool-id $pool --client-id $c
 curl.exe -H "Authorization: Bearer $token" "${api}receipts?status=needs_attention"
 ```
 
+## Phone web app (Phase 3b)
+
+React + Vite in `web/`, hosted on a private S3 bucket behind CloudFront
+(`infra/modules/web_hosting`). The main-branch workflow applies Terraform,
+then builds the app and syncs it to the bucket. Terraform writes
+`config.json` (API URL, Cognito ids), so the same build works in any environment.
+
+Open the URL from `terraform output -raw web_url` on your phone, sign in, and
+use **Share → Add to Home Screen** to install it.
+
+- **Add receipt:** take a photo; the app shrinks it to a JPEG and warns if it
+  looks blurry, dark, or small (you can still upload), then shows the receipt
+  as it's read.
+- **Needs your input:** receipts the validation step flagged; fix the fields
+  and save (the same rules as the pipeline decide whether it's complete).
+- **By month:** everything with a purchase date in that month.
+
+Security: sign-in uses the authorization code flow with PKCE (no client
+secret); CloudFront adds a strict Content-Security-Policy (scripts only from
+the app's own origin), HSTS, and frame blocking.
+
+### Run it locally
+```powershell
+cd infra/envs/dev
+$cfg = @{ apiUrl = (terraform output -raw api_url); issuer = (terraform output -raw issuer);
+          clientId = (terraform output -raw web_client_id); loginDomain = (terraform output -raw login_domain) }
+$cfg | ConvertTo-Json | Set-Content ..\..\..\web\public\config.json   # gitignored
+cd ..\..\..\web
+npm install
+npm run dev        # http://localhost:5173 (registered with Cognito and CORS)
+npm test
+```
+
 ### Run the unit tests
 ```powershell
 python -m pip install -r services/pipeline/requirements-dev.txt

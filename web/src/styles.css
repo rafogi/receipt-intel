@@ -1,0 +1,283 @@
+:root {
+  --green: #1f6f5c;
+  --green-dark: #17594a;
+  --bg: #f6f7f5;
+  --card: #ffffff;
+  --text: #1d2321;
+  --muted: #5f6b67;
+  --line: #dde2df;
+  --warn-bg: #fff6e0;
+  --warn-line: #f0c75e;
+  --error: #b3261e;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+a {
+  color: var(--green);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top) + 0.75rem) 1rem 0.75rem;
+  background: var(--green);
+  color: #fff;
+}
+
+.topbar a,
+.topbar button {
+  color: #fff;
+}
+
+.brand {
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1rem 1rem calc(env(safe-area-inset-bottom) + 6rem);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.ok {
+  color: var(--green);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+button,
+.button {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--green);
+  background: var(--card);
+  color: var(--green);
+  cursor: pointer;
+  width: 100%;
+}
+
+button.primary,
+.button.primary {
+  background: var(--green);
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+button.link {
+  border: none;
+  background: none;
+  width: auto;
+  padding: 0;
+  font-weight: 500;
+}
+
+button.secondary,
+.button.secondary {
+  margin-top: 0.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tabs button {
+  padding: 0.6rem;
+  font-weight: 500;
+}
+
+.tabs button.active {
+  background: var(--green);
+  color: #fff;
+}
+
+.month-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+input,
+select {
+  font: inherit;
+  font-size: 16px; /* below 16px, iOS zooms into the field */
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--card);
+  width: 100%;
+}
+
+.month-bar input {
+  width: auto;
+}
+
+.receipts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.receipt-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.store {
+  font-weight: 600;
+}
+
+.amount {
+  font-weight: 700;
+  text-align: right;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.badge {
+  justify-self: end;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.badge.processed {
+  background: #dcefe8;
+  color: var(--green-dark);
+}
+
+.badge.needs_review,
+.badge.needs_manual_entry {
+  background: var(--warn-bg);
+  color: #7a5a00;
+}
+
+.fab {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  background: var(--green);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  padding: 1rem 1.25rem;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+}
+
+.warning {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 0.75rem;
+  padding: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.warning ul {
+  margin: 0.25rem 0;
+  padding-left: 1.1rem;
+}
+
+.preview,
+.photo {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  margin-top: 1rem;
+}
+
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 500;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.fields dt {
+  color: var(--muted);
+}
+
+.fields dd {
+  margin: 0;
+  text-align: right;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 0.25rem;
+}

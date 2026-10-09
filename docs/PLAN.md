@@ -18,7 +18,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 | 0 | Foundations: account, Identity Center, Terraform state, CI/CD | ✅ Done |
 | 1 | Test set and extraction evaluation | 🟡 In progress (Bedrock blocked by account verification) |
 | 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
-| 3 | Upload API, Cognito, phone web app | 🟡 In progress (3a API) |
+| 3 | Upload API, Cognito, phone web app | 🟡 In progress (3a API, 3b web app in review) |
 | 4 | Online receipts: email and PDF | ⬜ |
 | 5 | Event consumers, dashboard, budgets | ⬜ |
 | 6 | Observability, failure handling, cost | ⬜ |
@@ -171,10 +171,12 @@ blocked (Bedrock failures exercise the DLQ path).
 - [ ] Deployed and smoke-tested from the CLI
 
 **3b: phone web app**
-- [ ] React (Vite) PWA on S3 + CloudFront: camera capture, pre-upload blur check
-- [ ] Receipts list, detail view, "Needs your input" screen, manual entry form; status polling
-- [ ] CI builds and deploys the app; CloudFront origin added to Cognito and CORS
-- Later: refresh token rotation (needs a client library that supports it)
+- [x] React (Vite) installable web app on S3 + CloudFront (OAC, strict CSP, HSTS)
+- [x] Camera capture; resize to JPEG; blur / darkness / size check calibrated on Phase 1 photos
+- [x] "Needs your input" and by-month lists, detail view with photo, manual fix form; status polling
+- [x] CI builds and deploys the app after apply; CloudFront origin added to Cognito and CORS
+- [ ] Deployed; signed in on the phone, uploaded, fixed a flagged receipt by hand
+- Later: refresh token rotation (needs a client library that supports it); offline support (service worker)
 
 **Done when:** sign in on the phone, upload, and see the receipt appear; fix
 a flagged one by hand.

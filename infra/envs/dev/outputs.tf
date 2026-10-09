@@ -33,3 +33,19 @@ output "web_client_id" {
 output "login_domain" {
   value = module.api.login_domain
 }
+
+output "issuer" {
+  value = module.api.issuer
+}
+
+output "web_url" {
+  value = module.web.url
+}
+
+output "web_bucket" {
+  value = module.web.bucket_name
+}
+
+output "web_distribution_id" {
+  value = module.web.distribution_id
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Receipts",
+  "short_name": "Receipts",
+  "description": "Snap receipts; they become categorized spending data.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f7f5",
+  "theme_color": "#1f6f5c",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

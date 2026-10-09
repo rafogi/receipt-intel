@@ -6,12 +6,14 @@ on:
     paths:
       - "infra/**"
       - "services/**"
+      - "web/**"
       - ".github/workflows/terraform.yml"
   push:
     branches: [main]
     paths:
       - "infra/**"
       - "services/**"
+      - "web/**"
       - ".github/workflows/terraform.yml"
   workflow_dispatch:
 
@@ -95,3 +97,25 @@ jobs:
 
       - name: Apply
         run: terraform -chdir="$TF_WORKDIR" apply -input=false -auto-approve
+
+      # The web app ships after apply, so its bucket and config.json exist.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web app
+        working-directory: web
+        run: npm ci && npm run build
+
+      - name: Deploy web app
+        run: |
+          bucket=$(terraform -chdir="$TF_WORKDIR" output -raw web_bucket)
+          distribution=$(terraform -chdir="$TF_WORKDIR" output -raw web_distribution_id)
+          # Hashed assets never change: cache for a year. Old ones stay for open tabs.
+          aws s3 sync web/dist/assets "s3://$bucket/assets" --cache-control "public,max-age=31536000,immutable"
+          # Everything else revalidates. config.json belongs to Terraform.
+          aws s3 sync web/dist "s3://$bucket" --delete --exclude "assets/*" --exclude "config.json" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$distribution" \
+            --paths "/index.html" "/manifest.webmanifest" "/icon.svg" > /dev/null
