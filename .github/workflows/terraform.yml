@@ -33,6 +33,8 @@ env:
   TF_WORKDIR: infra/envs/dev
   # Keep in sync with your local Terraform version.
   TF_VERSION: "1.16.2"
+  # Not committed: an email address for budget alerts and weekly summaries.
+  TF_VAR_notification_email: ${{ vars.NOTIFICATION_EMAIL }}
 
 jobs:
   plan:

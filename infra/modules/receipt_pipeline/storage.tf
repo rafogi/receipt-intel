@@ -146,6 +146,10 @@ resource "aws_dynamodb_table" "receipts" {
     projection_type = "ALL"
   }
 
+  # Budget alerts (Phase 5) follow changes here; new images are enough.
+  stream_enabled   = true
+  stream_view_type = "NEW_IMAGE"
+
   point_in_time_recovery {
     enabled = true
   }

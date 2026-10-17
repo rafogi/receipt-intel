@@ -9,6 +9,10 @@ always the token's `sub` claim, never a value taken from the request.
     GET   /receipts/{id}    one receipt, with a short-lived photo URL
     PATCH /receipts/{id}    manual fix; saved as source=manual, never overwritten
     DELETE /receipts/{id}   remove a receipt (e.g. a duplicate) and its photo
+    GET   /spending         month totals by category, with budget progress; ?month=YYYY-MM
+    GET   /budgets          monthly budgets
+    PUT   /budgets/{category}     set a monthly limit ("total" = all categories)
+    DELETE /budgets/{category}    remove a budget
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from receipt_schema import MONEY_FIELDS
+from spending import BUDGET_KEYS, budget_progress, month_bounds, receipts_between, summarize, today_local
 from validate import clean_fields, dynamo_update, field_checks
 
 logger = logging.getLogger()
@@ -37,6 +42,7 @@ logger.setLevel(logging.INFO)
 
 BUCKET = os.environ.get("BUCKET", "")
 TABLE = os.environ.get("TABLE", "")
+BUDGETS_TABLE = os.environ.get("BUDGETS_TABLE", "")
 REGION = os.environ.get("AWS_REGION", "us-west-2")
 UPLOAD_PREFIX = os.environ.get("UPLOAD_PREFIX", "uploads/")
 RAW_PREFIX = os.environ.get("RAW_PREFIX", "textract/")
@@ -71,6 +77,7 @@ PUBLIC_FIELDS = {
 }
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+MAX_BUDGET = Decimal("100000")
 
 def make_s3_client():
     """Regional endpoint and virtual-hosted style: a presigned URL on the global
@@ -86,6 +93,7 @@ def make_s3_client():
 s3 = make_s3_client()
 dynamodb = boto3.client("dynamodb", region_name=REGION)
 table = boto3.resource("dynamodb", region_name=REGION).Table(TABLE or "unset")
+budgets_table = boto3.resource("dynamodb", region_name=REGION).Table(BUDGETS_TABLE or "unset")
 _deserializer = TypeDeserializer()
 
 
@@ -230,12 +238,55 @@ def delete_receipt(user_id: str, event: dict) -> tuple[int, dict]:
     return 200, {"deleted": receipt_id}
 
 
+def get_spending(user_id: str, event: dict) -> tuple[int, dict]:
+    month = (event.get("queryStringParameters") or {}).get("month") or today_local().strftime("%Y-%m")
+    if not MONTH.match(month):
+        raise ApiError(400, "month must be YYYY-MM")
+    summary = summarize(receipts_between(table, user_id, *month_bounds(month)))
+    budgets = user_budgets(user_id)
+    return 200, {"month": month, **summary, "budgets": budget_progress(summary, budgets)}
+
+
+def list_budgets(user_id: str, event: dict) -> tuple[int, dict]:
+    items = user_budgets(user_id)
+    return 200, {"budgets": [{k: b[k] for k in ("category", "monthlyLimit", "updatedAt") if k in b} for b in items]}
+
+
+def put_budget(user_id: str, event: dict) -> tuple[int, dict]:
+    category = path_category(event)
+    raw = parse_body(event).get("monthlyLimit")
+    try:
+        limit = Decimal(str(raw).strip().lstrip("$").replace(",", "")).quantize(Decimal("0.01"))
+    except (ArithmeticError, ValueError):
+        raise ApiError(422, "monthlyLimit must be an amount, e.g. 600 or 600.00") from None
+    if not limit.is_finite() or limit <= 0 or limit > MAX_BUDGET:
+        raise ApiError(422, f"monthlyLimit must be between 0.01 and {MAX_BUDGET}")
+    now = datetime.now(timezone.utc).isoformat()
+    # A new limit starts its alerts afresh, so raising it can alert again at the new 85%.
+    budgets_table.update_item(
+        Key={"userId": user_id, "category": category},
+        UpdateExpression="SET monthlyLimit = :l, updatedAt = :t REMOVE alerts",
+        ExpressionAttributeValues={":l": limit, ":t": now},
+    )
+    return 200, {"category": category, "monthlyLimit": limit, "updatedAt": now}
+
+
+def delete_budget(user_id: str, event: dict) -> tuple[int, dict]:
+    category = path_category(event)
+    budgets_table.delete_item(Key={"userId": user_id, "category": category})
+    return 200, {"deleted": category}
+
+
 ROUTES = {
     "POST /uploads": create_upload,
     "GET /receipts": list_receipts,
     "GET /receipts/{id}": get_receipt,
     "PATCH /receipts/{id}": update_receipt,
     "DELETE /receipts/{id}": delete_receipt,
+    "GET /spending": get_spending,
+    "GET /budgets": list_budgets,
+    "PUT /budgets/{category}": put_budget,
+    "DELETE /budgets/{category}": delete_budget,
 }
 
 
@@ -277,6 +328,18 @@ def path_id(event: dict) -> str:
     if not SAFE_ID.match(receipt_id):
         raise ApiError(400, "invalid receipt id")
     return receipt_id
+
+
+def path_category(event: dict) -> str:
+    category = (event.get("pathParameters") or {}).get("category", "")
+    if category not in BUDGET_KEYS:
+        raise ApiError(400, f"category must be one of {BUDGET_KEYS}")
+    return category
+
+
+def user_budgets(user_id: str) -> list[dict]:
+    resp = budgets_table.query(KeyConditionExpression=Key("userId").eq(user_id))
+    return resp.get("Items", [])  # at most 11 small items, one page
 
 
 def parse_body(event: dict) -> dict:

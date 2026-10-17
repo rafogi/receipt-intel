@@ -193,11 +193,14 @@ a flagged one by hand.
 
 **Done when:** a forwarded order email appears once, with correct total and currency.
 
-### Phase 5: Consumers, dashboard, budgets
-- SNS notifications; weekly Bedrock summary (EventBridge Scheduler)
-- Dashboard: spending by category and month
-- Budgets table; budget progress in the dashboard; budget alerts (e.g. 85% used)
-- Optional: DynamoDB Streams to maintain running totals
+### Phase 5: Consumers, dashboard, budgets 🟡
+- [x] `spending.py`: month totals by category over processed receipts, budget progress (shared by API, alerts, summary)
+- [x] Budgets table; `GET /spending`, `GET /budgets`, `PUT`/`DELETE /budgets/{category}` (`total` = overall budget)
+- [x] Budget alerts: DynamoDB Streams (filtered to processed) → Lambda → SNS, once per budget/month/threshold (85%, 100%)
+- [x] Weekly summary: EventBridge Scheduler (Mon 08:00 Vancouver) → Lambda; math in code, Nova Lite words it
+- [ ] Deployed; `NOTIFICATION_EMAIL` set and subscription confirmed; summary invoked by hand
+- [ ] Dashboard UI on the redesigned Spending screen: category breakdown and budget progress from `GET /spending`; budget editor
+- [ ] A real budget alert fires
 
 **Done when:** dashboard shows real data and a budget alert fires.
 

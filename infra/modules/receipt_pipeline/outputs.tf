@@ -22,6 +22,10 @@ output "table_arn" {
   value = aws_dynamodb_table.receipts.arn
 }
 
+output "table_stream_arn" {
+  value = aws_dynamodb_table.receipts.stream_arn
+}
+
 output "state_machine_arn" {
   value = aws_sfn_state_machine.pipeline.arn
 }

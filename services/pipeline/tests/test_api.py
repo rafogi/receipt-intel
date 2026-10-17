@@ -293,3 +293,89 @@ def test_delete_never_touches_another_users_object(monkeypatch):
 def test_delete_missing_receipt_is_404(monkeypatch):
     monkeypatch.setattr(api, "table", FakeTable())
     assert call("DELETE /receipts/{id}", path_id="nope")[0] == 404
+
+
+# ---------------------------------------------------------------- spending and budgets
+
+
+class FakeBudgets:
+    def __init__(self, items=()):
+        self.items = {i["category"]: dict(i) for i in items}
+        self.updates = []
+
+    def query(self, **kwargs):
+        return {"Items": list(self.items.values())}
+
+    def update_item(self, **kwargs):
+        self.updates.append(kwargs)
+        self.items[kwargs["Key"]["category"]] = {
+            "userId": USER, "category": kwargs["Key"]["category"],
+            "monthlyLimit": kwargs["ExpressionAttributeValues"][":l"],
+        }
+
+    def delete_item(self, Key):
+        self.items.pop(Key["category"], None)
+
+
+def call_budget(method, category, body=None):
+    event = {
+        "routeKey": f"{method} /budgets/{{category}}",
+        "requestContext": {"authorizer": {"jwt": {"claims": {"sub": USER}}}},
+        "body": json.dumps(body) if body is not None else None,
+        "pathParameters": {"category": category},
+    }
+    resp = api.handler(event, None)
+    return resp["statusCode"], json.loads(resp["body"])
+
+
+def test_spending_totals_processed_receipts_with_budget_progress(monkeypatch):
+    table = FakeTable([
+        receipt(receiptId="a", status="processed", category="groceries", total=Decimal("90.00"), gst=Decimal("0.50")),
+        receipt(receiptId="b", status="processed", category="dining", total=Decimal("30.00")),
+        receipt(receiptId="c", status="needs_review", total=Decimal("500.00")),
+    ])
+    table.query = lambda **kw: (table.queries.append(kw), {"Items": list(table.items.values())})[1]
+    monkeypatch.setattr(api, "table", table)
+    monkeypatch.setattr(api, "budgets_table", FakeBudgets([{"category": "groceries", "monthlyLimit": Decimal("100")}]))
+    status, body = call("GET /spending", query={"month": "2026-09"})
+    assert status == 200
+    assert body["month"] == "2026-09" and body["total"] == 120 and body["gst"] == 0.5
+    assert body["processedCount"] == 2 and body["pendingCount"] == 1
+    assert [c["category"] for c in body["byCategory"]] == ["groceries", "dining"]
+    assert body["budgets"] == [{"category": "groceries", "limit": 100, "spent": 90, "percent": 90}]
+    assert table.queries[0]["IndexName"] == "byDate"
+
+
+def test_spending_rejects_bad_month():
+    assert call("GET /spending", query={"month": "2026-13"})[0] == 400
+
+
+def test_put_budget_parses_amount_and_resets_alerts(monkeypatch):
+    budgets = FakeBudgets()
+    monkeypatch.setattr(api, "budgets_table", budgets)
+    status, body = call_budget("PUT", "groceries", {"monthlyLimit": "$1,200"})
+    assert status == 200 and body["monthlyLimit"] == 1200
+    update = budgets.updates[0]
+    assert update["Key"] == {"userId": USER, "category": "groceries"}
+    assert "REMOVE alerts" in update["UpdateExpression"]
+
+
+@pytest.mark.parametrize("limit", [None, "abc", 0, -5, "NaN", "Infinity", 100001])
+def test_put_budget_rejects_bad_limits(monkeypatch, limit):
+    monkeypatch.setattr(api, "budgets_table", FakeBudgets())
+    assert call_budget("PUT", "groceries", {"monthlyLimit": limit})[0] == 422
+
+
+def test_budget_category_must_be_known(monkeypatch):
+    monkeypatch.setattr(api, "budgets_table", FakeBudgets())
+    assert call_budget("PUT", "yachts", {"monthlyLimit": 10})[0] == 400
+    assert call_budget("PUT", "total", {"monthlyLimit": 10})[0] == 200
+
+
+def test_list_and_delete_budgets(monkeypatch):
+    budgets = FakeBudgets([{"category": "gas", "monthlyLimit": Decimal("150"), "alerts": {"2026-10": 85}}])
+    monkeypatch.setattr(api, "budgets_table", budgets)
+    status, body = call("GET /budgets")
+    assert status == 200 and body == {"budgets": [{"category": "gas", "monthlyLimit": 150}]}  # no internal alerts
+    assert call_budget("DELETE", "gas") == (200, {"deleted": "gas"})
+    assert budgets.items == {}
