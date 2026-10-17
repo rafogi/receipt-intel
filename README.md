@@ -4,7 +4,8 @@ Event-driven document intelligence on AWS: receipt photos, PDFs, and forwarded
 email receipts become categorized spending data, using Textract, Amazon Bedrock,
 and Step Functions, with everything deployed from Terraform.
 
-> Status: Phase 2 (core pipeline). See [docs/PLAN.md](docs/PLAN.md) for the
+> Status: Phases 0 and 3 done; Phases 1 and 2 waiting on the extraction
+> evaluation (ADR-0003). See [docs/PLAN.md](docs/PLAN.md) for the
 > roadmap. Architecture, ADRs, and results are added here as each phase lands.
 
 ## Repository layout
