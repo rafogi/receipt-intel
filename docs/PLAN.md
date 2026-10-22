@@ -139,8 +139,8 @@ Compare extraction approaches on real receipts before building the pipeline.
 
 - [x] Evaluation tooling (`eval/`): labels CSV, Textract cache, report
 - [x] First Textract-only results (2 receipts: store, date, total correct; no subtotal/GST found)
-- [x] Bedrock unblocked
-- [x] 8-receipt run (2026-10-21): Nova Lite vision 3/8 all key fields, $0.16/1,000; Textract → Nova Micro 0/8 (loses date and subtotal that Textract found: bug)
+- [x] Bedrock unblocked (support case closed 2026-10-16; Nova works)
+- [ ] Anthropic models: use case details form still to submit (Converse returns ResourceNotFoundException)
 - [ ] 20–30 labeled receipts, including 2–3 deliberately unreadable ones
 - [ ] Add `unreadable_reason`, Textract-vs-LLM cross-check, "guessed vs. admitted" metric
 - [ ] Full run; ADR-0003 (extraction approach) with accuracy, latency, cost
@@ -169,7 +169,7 @@ blocked (Bedrock failures exercise the DLQ path).
 - [x] `POST /uploads` presigned POST (type and size enforced by S3), bucket CORS
 - [x] Read endpoints and `PATCH /receipts/{id}` (manual fix, same rules as the pipeline)
 - [x] Least-privilege IAM, throttling, access logs without request bodies
-- [ ] Deployed and smoke-tested from the CLI
+- [x] Deployed and smoke-tested from the CLI (2026-10-17, temporary user: auth, upload, pipeline in 4.5 s, 422 and fix, month list, delete)
 
 **3b: phone web app**
 - [x] React (Vite) installable web app on S3 + CloudFront (OAC, strict CSP, HSTS)
