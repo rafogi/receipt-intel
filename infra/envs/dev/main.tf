@@ -23,6 +23,8 @@ module "api" {
   raw_prefix         = module.pipeline.raw_prefix
   table_name         = module.pipeline.table_name
   table_arn          = module.pipeline.table_arn
+  budgets_table_name = module.budgets.table_name
+  budgets_table_arn  = module.budgets.table_arn
   log_retention_days = 14
 
   # The deployed app, plus the local dev server (npm run dev).
@@ -30,6 +32,22 @@ module "api" {
 
   # Lets an admin fetch tokens from the CLI for smoke tests (needs IAM admin credentials).
   allow_admin_password_auth = true
+}
+
+# Phase 5: budgets, budget alerts (SNS) and the weekly Bedrock summary.
+module "budgets" {
+  source = "../../modules/budgets"
+
+  name_prefix         = local.name_prefix
+  lambda_source_dir   = "${path.root}/../../../services/pipeline/src"
+  receipts_table_name = module.pipeline.table_name
+  receipts_table_arn  = module.pipeline.table_arn
+  receipts_stream_arn = module.pipeline.table_stream_arn
+  user_pool_id        = module.api.user_pool_id
+  user_pool_arn       = module.api.user_pool_arn
+  notification_email  = var.notification_email
+  app_url             = module.web.url
+  log_retention_days  = 14
 }
 
 # Phase 3b: the phone web app (S3 + CloudFront). CI uploads the build.

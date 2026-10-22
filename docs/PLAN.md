@@ -16,7 +16,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 | Phase | Focus | Status |
 |---|---|---|
 | 0 | Foundations: account, Identity Center, Terraform state, CI/CD | ✅ Done |
-| 1 | Test set and extraction evaluation | 🟡 In progress (Bedrock blocked by account verification) |
+| 1 | Test set and extraction evaluation | 🟡 Paused (MVP; 8-receipt run done) |
 | 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
 | 3 | Upload API, Cognito, phone web app | ✅ Done |
 | 4 | Online receipts: email and PDF | ⬜ |
@@ -139,7 +139,8 @@ Compare extraction approaches on real receipts before building the pipeline.
 
 - [x] Evaluation tooling (`eval/`): labels CSV, Textract cache, report
 - [x] First Textract-only results (2 receipts: store, date, total correct; no subtotal/GST found)
-- [ ] Bedrock unblocked (support case open; account verification hold)
+- [x] Bedrock unblocked
+- [x] 8-receipt run (2026-10-21): Nova Lite vision 3/8 all key fields, $0.16/1,000; Textract → Nova Micro 0/8 (loses date and subtotal that Textract found: bug)
 - [ ] 20–30 labeled receipts, including 2–3 deliberately unreadable ones
 - [ ] Add `unreadable_reason`, Textract-vs-LLM cross-check, "guessed vs. admitted" metric
 - [ ] Full run; ADR-0003 (extraction approach) with accuracy, latency, cost
@@ -193,11 +194,14 @@ a flagged one by hand.
 
 **Done when:** a forwarded order email appears once, with correct total and currency.
 
-### Phase 5: Consumers, dashboard, budgets
-- SNS notifications; weekly Bedrock summary (EventBridge Scheduler)
-- Dashboard: spending by category and month
-- Budgets table; budget progress in the dashboard; budget alerts (e.g. 85% used)
-- Optional: DynamoDB Streams to maintain running totals
+### Phase 5: Consumers, dashboard, budgets 🟡
+- [x] `spending.py`: month totals by category over processed receipts, budget progress (shared by API, alerts, summary)
+- [x] Budgets table; `GET /spending`, `GET /budgets`, `PUT`/`DELETE /budgets/{category}` (`total` = overall budget)
+- [x] Budget alerts: DynamoDB Streams (filtered to processed) → Lambda → SNS, once per budget/month/threshold (85%, 100%)
+- [x] Weekly summary: EventBridge Scheduler (Mon 08:00 Vancouver) → Lambda; math in code, Nova Lite words it
+- [ ] Deployed; `NOTIFICATION_EMAIL` set and subscription confirmed; summary invoked by hand
+- [ ] Dashboard UI on the redesigned Spending screen: category breakdown and budget progress from `GET /spending`; budget editor
+- [ ] A real budget alert fires
 
 **Done when:** dashboard shows real data and a budget alert fires.
 
@@ -279,8 +283,6 @@ throughput, customer-managed KMS keys.
 
 ## Open items and risks
 
-- **Bedrock blocked** ("Too many tokens per day" / account verification).
-  Support case open. Not blocking Phase 2 infrastructure work.
 - Math check needs a fallback for receipts without a subtotal line.
 - Collect 20–30 receipts plus 5–10 online PDFs (for Phase 4).
 - Later: `prod` environment with tag-based promotion and required reviewers.

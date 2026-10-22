@@ -18,6 +18,22 @@ output "pipeline_dlq_url" {
   value = module.pipeline.pipeline_dlq_url
 }
 
+output "budgets_table" {
+  value = module.budgets.table_name
+}
+
+output "notifications_topic_arn" {
+  value = module.budgets.topic_arn
+}
+
+output "budget_alerts_dlq_url" {
+  value = module.budgets.alerts_dlq_url
+}
+
+output "weekly_summary_function" {
+  value = module.budgets.summary_function_name
+}
+
 output "api_url" {
   value = module.api.api_url
 }
