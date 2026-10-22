@@ -8,6 +8,10 @@ locals {
     "GET /receipts/{id}",
     "PATCH /receipts/{id}",
     "DELETE /receipts/{id}",
+    "GET /spending",
+    "GET /budgets",
+    "PUT /budgets/{category}",
+    "DELETE /budgets/{category}",
   ]
 }
 
@@ -19,6 +23,12 @@ data "aws_iam_policy_document" "api_function" {
       var.table_arn,
       "${var.table_arn}/index/*",
     ]
+  }
+
+  statement {
+    sid       = "BudgetsTable"
+    actions   = ["dynamodb:Query", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
+    resources = [var.budgets_table_arn]
   }
 
   # Presigned URLs carry the signer's permissions: POST for new uploads,
@@ -55,6 +65,7 @@ module "api_function" {
   environment_variables = {
     BUCKET        = var.bucket_name
     TABLE         = var.table_name
+    BUDGETS_TABLE = var.budgets_table_name
     UPLOAD_PREFIX = var.upload_prefix
     RAW_PREFIX    = var.raw_prefix
   }
@@ -67,7 +78,7 @@ resource "aws_apigatewayv2_api" "http" {
   # API Gateway answers CORS preflight (OPTIONS) itself, without auth.
   cors_configuration {
     allow_origins = var.web_origins
-    allow_methods = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     allow_headers = ["authorization", "content-type"]
     max_age       = 3600
   }

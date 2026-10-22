@@ -34,6 +34,14 @@ variable "table_arn" {
   type = string
 }
 
+variable "budgets_table_name" {
+  type = string
+}
+
+variable "budgets_table_arn" {
+  type = string
+}
+
 variable "web_origins" {
   description = "Origins allowed to sign in and call the API, e.g. https://xxxx.cloudfront.net (no trailing slash)."
   type        = list(string)

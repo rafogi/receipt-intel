@@ -194,6 +194,30 @@ python -m pip install -r services/pipeline/requirements-dev.txt
 python -m pytest services/pipeline -q
 ```
 
+## Budgets, alerts and weekly summary (Phase 5)
+
+Terraform: `infra/modules/budgets`; code: `spending.py` (all the math),
+`alerts.py`, `summary.py` in `services/pipeline/src`.
+
+| Route | Does |
+|---|---|
+| `GET /spending` | `?month=YYYY-MM` (default: this month, Vancouver time). Totals, GST/PST, and per-category amounts over **processed** receipts; `pendingCount` for ones still waiting on you; progress for each budget |
+| `GET /budgets` | Your monthly budgets |
+| `PUT /budgets/{category}` | `{"monthlyLimit": 600}`; `category` is a spending category or `total` (all of them). A new limit resets that budget's alerts |
+| `DELETE /budgets/{category}` | Removes a budget |
+
+- **Budget alerts:** the receipts table streams changes to the alerts Lambda
+  (filtered to `processed` receipts). It recomputes the month and emails once
+  per budget, month and threshold (85% and 100%) through SNS.
+- **Weekly summary:** EventBridge Scheduler runs the summary Lambda on Mondays
+  at 08:00 Vancouver time. Code computes last week, month to date and budgets;
+  Bedrock (Nova Lite) only words those numbers, and the exact figures are
+  always appended. If the model call fails, the figures go alone.
+- **Email:** set the `NOTIFICATION_EMAIL` repository variable in GitHub; the
+  next apply subscribes it to the topic and AWS emails a confirmation link.
+  Try the summary any time:
+  `aws lambda invoke --function-name (terraform output -raw weekly_summary_function) out.json`
+
 ## Architecture decisions
 - [ADR-0001: Deploy to us-west-2](docs/adr/0001-region-selection.md)
 - [ADR-0002: Terraform state and CI/CD authentication](docs/adr/0002-terraform-state-and-ci-auth.md)
