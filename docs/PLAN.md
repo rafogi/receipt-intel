@@ -20,7 +20,7 @@ decisions, evaluation results, and cost analysis matter as much as the code.
 | 2 | Core pipeline | 🟡 In progress (extraction step waits on Phase 1) |
 | 3 | Upload API, Cognito, phone web app | ✅ Done |
 | 4 | Online receipts: email and PDF | ⬜ |
-| 5 | Event consumers, dashboard, budgets | ⬜ |
+| 5 | Event consumers, dashboard, budgets | 🟡 Backend live; dashboard next |
 | 6 | Observability, failure handling, cost | ⬜ |
 | 7 | Portfolio packaging (v1 write-up) | ⬜ |
 | 8 | Strands agents: review agent and spending Q&A agent | ⬜ |
@@ -46,8 +46,8 @@ decisions, evaluation results, and cost analysis matter as much as the code.
    - **Analyze** (small Lambda): Textract AnalyzeExpense, raw response saved to
      S3, compact fields returned. A Lambda, not a direct integration, because
      responses can exceed the 256 KB Step Functions payload limit (ADR-0004)
-   - **Bedrock (Nova)** extraction and categorization with a JSON schema
-     (direct service integration; a Textract-only placeholder until ADR-0003)
+   - **Extract** (small Lambda): Nova Lite reads the photo with a JSON schema;
+     Textract fills gaps and its date wins (MVP choice; ADR-0003 deferred)
    - **Validate** (small Lambda, rule-based, not an LLM)
    - **Route:** valid → DynamoDB; failed validation → SQS review queue
    - Publish `ReceiptProcessed` event
@@ -156,7 +156,7 @@ Compare extraction approaches on real receipts before building the pipeline.
 - [x] Catch blocks set `needs_manual_entry` status after retries fail
 - [x] Unit tests in CI; ADR-0004, ADR-0005, ADR-0006
 - [x] Deployed and smoke-tested with a real upload (4.2 s end to end; duplicate upload skipped)
-- [ ] Extract step: replace the Textract-only placeholder once ADR-0003 is decided
+- [x] Extract step: Nova Lite vision Lambda replaces the Textract-only placeholder (MVP; ADR-0003 deferred)
 
 **Done when:** a receipt in S3 produces a DynamoDB row; a bad one lands in the
 review queue; a forced failure lands in the DLQ. Can be built while Bedrock is
@@ -199,9 +199,9 @@ a flagged one by hand.
 - [x] Budgets table; `GET /spending`, `GET /budgets`, `PUT`/`DELETE /budgets/{category}` (`total` = overall budget)
 - [x] Budget alerts: DynamoDB Streams (filtered to processed) → Lambda → SNS, once per budget/month/threshold (85%, 100%)
 - [x] Weekly summary: EventBridge Scheduler (Mon 08:00 Vancouver) → Lambda; math in code, Nova Lite words it
-- [ ] Deployed; `NOTIFICATION_EMAIL` set and subscription confirmed; summary invoked by hand
+- [x] Deployed; `NOTIFICATION_EMAIL` set and subscription confirmed; summary invoked by hand (2026-10-26)
 - [ ] Dashboard UI on the redesigned Spending screen: category breakdown and budget progress from `GET /spending`; budget editor
-- [ ] A real budget alert fires
+- [x] A real budget alert fires (groceries 85%, 2026-10-26)
 
 **Done when:** dashboard shows real data and a budget alert fires.
 

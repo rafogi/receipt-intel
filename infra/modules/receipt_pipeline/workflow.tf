@@ -1,7 +1,7 @@
 # Ingestion workflow: one execution per uploaded photo (docs/PLAN.md).
 #
 #   ValidateKey -> ParseKey -> Claim (idempotency) -> CheckFileType -> Analyze
-#     -> Extract (placeholder) -> Validate -> Save -> NeedsReview? -> Publish
+#     -> Extract (Nova Lite) -> Validate -> Save -> NeedsReview? -> Publish
 #
 # Any step that exhausts its retries goes to RecordFailure -> SendToDLQ -> Fail,
 # so a receipt is never dropped silently: it ends as needs_manual_entry and an
@@ -193,13 +193,26 @@ locals {
         Next           = "Extract"
       }
 
-      # Placeholder until ADR-0003 picks the extraction approach: Textract's own
-      # fields, no category, so every receipt lands in review. Replaced by a
-      # Bedrock step (direct integration) once Bedrock is available.
+      # Nova Lite reads the photo; Textract's fields fill gaps and back the
+      # total cross-check in Validate. Falls back to Textract-only fields if
+      # the model rejects the image (the receipt then lands in review).
       Extract = {
-        Type   = "Pass"
-        Assign = { extraction = "{% {'source': 'textract_only', 'fields': $analysis.fields} %}" }
-        Next   = "Validate"
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Arguments = {
+          FunctionName = module.extract.function_arn
+          Payload = {
+            bucket    = "{% $bucket %}"
+            key       = "{% $key %}"
+            receiptId = "{% $receiptId %}"
+            analysis  = "{% $analysis %}"
+          }
+        }
+        TimeoutSeconds = 90
+        Assign         = { extraction = "{% $states.result.Payload %}" }
+        Retry          = local.retry_lambda
+        Catch          = local.catch_failure
+        Next           = "Validate"
       }
 
       Validate = {
@@ -406,6 +419,8 @@ data "aws_iam_policy_document" "workflow" {
     resources = [
       module.analyze.function_arn,
       "${module.analyze.function_arn}:*",
+      module.extract.function_arn,
+      "${module.extract.function_arn}:*",
       module.validate.function_arn,
       "${module.validate.function_arn}:*",
     ]
