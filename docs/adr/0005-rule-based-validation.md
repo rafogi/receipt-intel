@@ -58,4 +58,6 @@ Manual edits (`PATCH /receipts/{id}`) run the same field rules
   that happen to be right). That cost is accepted: a false flag costs the
   user a tap; a wrong saved total corrupts their budget.
 - The cross-check against Textract's total only has teeth once a separate
-  LLM extraction exists; with the Phase 2 placeholder both come from Textract.
+  LLM extraction exists (the Nova Lite Extract step); when the model rejects
+  an image and the step falls back to Textract-only fields, both come from
+  Textract.

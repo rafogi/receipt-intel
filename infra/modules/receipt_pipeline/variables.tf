@@ -4,7 +4,7 @@ variable "name_prefix" {
 }
 
 variable "lambda_source_dir" {
-  description = "services/pipeline/src: shared package for the Analyze and Validate functions."
+  description = "services/pipeline/src: shared package for the Analyze, Extract and Validate functions."
   type        = string
 }
 
@@ -17,4 +17,10 @@ variable "deletion_protection" {
   description = "Protect the receipts table from deletion (turn off only to tear an environment down)."
   type        = bool
   default     = true
+}
+
+variable "extract_model_id" {
+  description = "Bedrock model (inference profile) that reads receipt photos in the Extract step."
+  type        = string
+  default     = "us.amazon.nova-lite-v1:0"
 }
