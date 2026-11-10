@@ -34,6 +34,31 @@ export interface ReceiptPage {
   nextToken?: string;
 }
 
+export interface CategorySpend {
+  category: string;
+  amount: number;
+  count: number;
+}
+
+/** One budget with this month's progress. category "total" is the overall budget. */
+export interface BudgetProgress {
+  category: string;
+  limit: number;
+  spent: number;
+  percent: number; // rounded down
+}
+
+export interface Spending {
+  month: string;
+  total: number;
+  gst: number;
+  pst: number;
+  processedCount: number;
+  pendingCount: number; // receipts this month still waiting on the user
+  byCategory: CategorySpend[];
+  budgets: BudgetProgress[];
+}
+
 export interface PresignedPost {
   url: string;
   fields: Record<string, string>;
@@ -78,6 +103,19 @@ export class ApiClient {
 
   async deleteReceipt(id: string): Promise<void> {
     await this.request("DELETE", `receipts/${encodeURIComponent(id)}`);
+  }
+
+  getSpending(month: string): Promise<Spending> {
+    return this.request<Spending>("GET", `spending?month=${encodeURIComponent(month)}`);
+  }
+
+  /** Amount may be a string ("600", "$600.00"); the API answers 422 if it can't parse it. */
+  async putBudget(category: string, monthlyLimit: number | string): Promise<void> {
+    await this.request("PUT", `budgets/${encodeURIComponent(category)}`, { monthlyLimit });
+  }
+
+  async deleteBudget(category: string): Promise<void> {
+    await this.request("DELETE", `budgets/${encodeURIComponent(category)}`);
   }
 
   /** Get a presigned form, then POST the photo straight to S3. Returns the new receipt id. */

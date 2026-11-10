@@ -287,3 +287,157 @@ select {
   display: inline-block;
   margin-bottom: 0.25rem;
 }
+
+/* ------------------------------------------------------------ spending */
+
+.month-nav {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.month-nav h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+button.icon {
+  padding: 0.4rem 0;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.kicker {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hero {
+  margin: 0;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.amount,
+.hero {
+  font-variant-numeric: tabular-nums;
+}
+
+.notice {
+  display: block;
+  margin: 0.75rem 0;
+  padding: 0.65rem 1rem;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  border-radius: 0.75rem;
+  color: #7a5a00;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 0.9rem;
+  margin: 1rem 0 0.75rem;
+}
+
+.bar span {
+  display: block;
+  min-width: 2px;
+}
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: 0.7rem 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.legend i {
+  width: 0.7rem;
+  height: 0.7rem;
+  display: block;
+}
+
+.budgets h3,
+.receipts-heading {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.budget-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.budget {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.budget-head,
+.budget-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.budget-foot {
+  font-size: 0.9rem;
+}
+
+.meter {
+  height: 0.5rem;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.budget.near .meter span {
+  background: var(--warn-line);
+}
+
+.budget.over .meter span {
+  background: var(--error);
+}
+
+.budget-form {
+  margin-top: 0.5rem;
+}
+
+.budget-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 500;
+}
