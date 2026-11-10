@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { Receipt } from "../api";
 import { useApi } from "../App";
 import { STATUS_LABELS, currentMonth, formatMoney } from "../labels";
+import { Spending } from "./Spending";
 
 type View = "attention" | "month";
 
@@ -43,8 +44,6 @@ export function ReceiptList() {
     setNextToken(page.nextToken);
   }
 
-  const total = (receipts ?? []).reduce((sum, r) => sum + (r.status === "processed" ? (r.total ?? 0) : 0), 0);
-
   return (
     <main className="page">
       <nav className="tabs" aria-label="Receipt views">
@@ -52,21 +51,12 @@ export function ReceiptList() {
           Needs your input
         </button>
         <button className={view === "month" ? "active" : ""} onClick={() => setParams({ view: "month", month })}>
-          By month
+          Spending
         </button>
       </nav>
 
-      {view === "month" && (
-        <div className="month-bar">
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => e.target.value && setParams({ view: "month", month: e.target.value })}
-            aria-label="Month"
-          />
-          {receipts && <span className="muted">Processed: {formatMoney(total)}</span>}
-        </div>
-      )}
+      {view === "month" && <Spending month={month} onMonthChange={(m) => setParams({ view: "month", month: m })} />}
+      {view === "month" && <h3 className="receipts-heading">Receipts</h3>}
 
       {error && <p className="error">{error}</p>}
       {!receipts && !error && <p className="muted">Loading…</p>}
